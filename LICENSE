@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Parham Asadi
+Copyright (c) 2026 Parham Asadi, Navid Shirzadi, Fuzhan Nasiri
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+Third-party data redistributed in this repository remains under its own terms:
+
+  * The EnergyPlus TMY3 weather file for San Francisco Intl. (WMO 724940) is
+    redistributed under the EnergyPlus weather-data terms.
+  * Vehicle-travel statistics are derived from the 2017 U.S. National Household
+    Travel Survey (NHTS), a public-domain dataset of the Federal Highway
+    Administration, U.S. Department of Transportation.
+  * Tariff parameters are taken from published Pacific Gas and Electric Company
+    schedules (E-TOU-C, B-19) and the California Public Utilities Commission
+    Net Billing Tariff decision D.22-12-056.
