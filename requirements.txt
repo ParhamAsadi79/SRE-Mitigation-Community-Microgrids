@@ -1,0 +1,37 @@
+# Environment specification for SRE-Mitigation-Community-Microgrids
+#
+# The manuscript's Code availability section states that "the exact interpreter and
+# solver versions are recorded in the repository environment specification". Before
+# depositing, REPLACE the minimum-version constraints below with the exact versions
+# from the machine that produced the published results:
+#
+#     python -m pip freeze > requirements.txt
+#
+# and record the interpreter version on the line below.
+#
+# Interpreter used for the published results: Python 3.11.x   <-- confirm and pin
+# EnergyPlus:                                 26.1            <-- external, not pip-installable
+
+# --- core numerics / data -------------------------------------------------------
+numpy>=1.26
+pandas>=2.1
+scipy>=1.11          # provides the HiGHS dual-revised simplex via scipy.optimize.linprog
+
+# --- figures --------------------------------------------------------------------
+matplotlib>=3.8
+seaborn>=0.13
+
+# --- sensitivity analysis and clustering ----------------------------------------
+SALib>=1.4           # Saltelli sampling and Sobol first-/total-order estimators
+scikit-learn>=1.3    # Gaussian-process surrogate (Pass-2 Sobol), adjusted Rand index
+
+# --- optional ------------------------------------------------------------------
+tqdm>=4.66           # progress bars in Run_Manager.py
+plotly>=5.18         # interactive HTML dashboard; omit and pass --skip-html
+pulp>=2.7            # only required by the auxiliary benchmark scripts
+requests>=2.31       # only required by Generate_NHTS_Data.py when fetching source data
+
+# --- notes ----------------------------------------------------------------------
+# pyenergyplus is NOT installed from PyPI. It ships with the EnergyPlus 26.1
+# installation and is imported by OccupancyPlugin.py inside the EnergyPlus Python
+# Plugin runtime. Set EPLUS_DIR at the top of Run_Manager.py to your install path.
