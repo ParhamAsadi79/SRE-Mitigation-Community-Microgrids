@@ -6,7 +6,7 @@ Replication package for:
 > Communication-Free Stagger with Star-Discrepancy Guarantees**
 > Parham Asadi, Navid Shirzadi, Fuzhan Nasiri
 > *Applied Energy* (under review).
-> Archived release: https://doi.org/10.5281/zenodo.21520013
+> Archived release: https://doi.org/10.5281/zenodo.21520012
 
 This repository contains the dispatcher, the EnergyPlus co-simulation harness, the
 analysis pipeline, the validation suite, and the datasets underlying every figure,
@@ -20,10 +20,9 @@ Time-of-use (TOU) tariffs intended to flatten residential demand instead steer e
 price-responsive device toward the same low-price hour, resynchronizing a
 neighbourhood into a coincident peak above the pre-control baseline. We call this the
 **synchronization rebound effect (SRE)** and show, across a 9,000-run EnergyPlus 26.1
-sweep (36 conditions x 5 scenarios x 50 houses), that it more than doubles the
-community coincidence factor (SRE = 2.035) and is driven by synchronized
-behind-the-meter **battery** recharge (250 kW), not by vehicle charging (43 kW even at
-full electrification).
+sweep (36 conditions x 5 scenarios x 50 houses), that it roughly doubles the community coincidence factor (SRE = 2.010), that
+synchronized behind-the-meter **battery** recharge drives it at low vehicle
+penetration, and that vehicles take over as electrification completes.
 
 The mitigation is a three-layer, **communication-free** dispatcher:
 
@@ -42,7 +41,7 @@ method) · `S2` TOU rebound (the operative counterfactual) · `S3` flat tariff �
 
 | Component | Version used |
 |---|---|
-| Python | 3.11 (3.10+ supported) |
+| Python | 3.11 or later (the September 2026 verification reruns used 3.13); pin the exact version in `requirements.txt` |
 | EnergyPlus | **26.1**, built with the Python Plugin interface enabled |
 | OS | Windows 10/11 or Linux (commands below give both forms) |
 
@@ -90,7 +89,7 @@ surrogate.
 |---|---|
 | `IEEE_Sensitivity_Analysis.py` | Master analysis pipeline: all data figures (F01–F16) and tables (T01–T08), BCa bootstrap, Cliff's delta, Sobol decomposition, k-Shape archetypes. |
 | `make_schematic_figures1.py` | Schematic figures (Fig. 1–6, Fig. 11, the introduction SRE mechanism) and the **graphical abstract**. |
-| `active_set_apriori.py`, `active_set_theory.py` | Numerical verification of **Proposition 1** (a-priori active-set overshoot bound) and the realized discrepancy certificate. |
+| `active_set_apriori.py`, `active_set_theory.py` | Numerical verification of **Proposition 1** (a-priori active-set overshoot bound) and the realized-discrepancy check against Proposition 1. |
 | `odc_vs_stagger.py` | Controlled head-to-head against the communicated decentralized optimum of Gan et al. (2013). |
 | `odc_penetration_sweep.py` | The same comparison swept across EV penetration (Table 8, F12). |
 | `odc_resilience.py`, `plot_resilience.py` | Communication-degradation and forecast-error resilience (Section 5.7, F13). |
@@ -101,7 +100,7 @@ surrogate.
 ### Validation suite
 | File | Checks |
 |---|---|
-| `validate_pipeline.py` | Metric recomputation, per-house energy balance, EV deadline audit, LP-OPF sanity, Sobol sanity, discrepancy certificate. |
+| `validate_pipeline.py` | Metric recomputation, per-house energy balance, EV deadline audit, LP-OPF sanity, Sobol sanity, realized-discrepancy check. |
 | `validate_physical_fidelity.py` | PV yield against PVWatts and the building energy benchmark. |
 | `validate_load_intensity.py` | Annual electricity intensity against the ResStock CZ-3C benchmark. |
 | `deadline_audit.py` | Reconstructs the realized EV deadline-miss rate from per-house telemetry (cited in Section 4.1). |
@@ -263,7 +262,7 @@ Every check below was run before submission. Replace `<RESULTS>` with your resul
 directory (e.g. `Results_Sensitivity`).
 
 **Full pipeline check** — metric recomputation, per-house energy balance, EV deadline
-audit, LP-OPF bound sanity, Sobol sanity, discrepancy certificate:
+audit, LP-OPF bound sanity, Sobol sanity, realized-discrepancy check:
 
 ```bash
 python validate_pipeline.py --results <RESULTS> --csv SRE_metrics_summary.csv --sobol-dir . --log Swarm_Execution.log --sample 0
@@ -339,16 +338,17 @@ python verify_stagger_mode_patch.py
 
 | Quantity | Value |
 |---|---|
-| Rebound ratio SRE = CF(S2)/CF(S0) | 2.035, BCa 95% CI [1.931, 2.160] |
-| Mitigation index MIT = CF(S1)/CF(S2) | 0.859, BCa 95% CI [0.848, 0.871]; below 1.0 in 36/36 cells |
-| Community peak, S1 vs S2 | 224.5 kW vs 310.2 kW |
+| Rebound ratio SRE = CF(S2)/CF(S0) | 2.010, BCa 95% CI [1.905, 2.131] |
+| Mitigation index MIT = CF(S1)/CF(S2) | 0.597, BCa 95% CI [0.568, 0.625]; below 1.0 in 36/36 cells |
+| Community peak, S1 vs S2 | 145.8 kW vs 309.2 kW (−52.8%) |
 | Battery contribution at the peak instant (S2) | 250 kW (50 packs x 5 kW) |
 | Coincident EV draw (S2) | 7 kW at 25% penetration → 43 kW at 100% |
+| Storage's marginal contribution to the S2 peak | 186 kW at 25% EVs → 39 kW at 100% |
 | Storage scaling of the S2 peak | R² = 0.9998 |
 | Battery-free rebound (7 kW) | SRE = 1.143 |
-| Annual bill reduction vs rebound | $38,625 (12.8%) |
-| Modelled grid CO₂ reduction vs rebound | 3.7% |
-| Jain fairness (S1) | 0.861, level with the rebound (0.860) |
+| Annual bill reduction vs rebound | $75,132 (32.3%) |
+| Modelled grid CO₂ reduction vs rebound | 5.4% |
+| Jain fairness (S1) | 0.672, level with the rebound (0.670) |
 | Recovery of the communicated optimum | 59.8% mean (54.3–66.4%), 64.1% at full electrification |
 | Connectivity crossover | 48.2% of the fleet unreachable |
 
@@ -364,7 +364,7 @@ python verify_stagger_mode_patch.py
              Guarantees},
   journal = {Applied Energy},
   year    = {2026},
-  note    = {Replication package: https://doi.org/10.5281/zenodo.21520013}
+  note    = {Replication package: https://doi.org/10.5281/zenodo.21520012}
 }
 ```
 
