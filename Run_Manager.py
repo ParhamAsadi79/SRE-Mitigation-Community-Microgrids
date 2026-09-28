@@ -56,20 +56,21 @@ except ImportError:
     _PLOTLY_AVAILABLE = False
 
 
-# 1.  GLOBAL CONSTANTS
+# 1.  GLOBAL CONSTANTS  (synchronised with OccupancyPlugin.py v9.3)
 
 GLOBAL_RANDOM_SEED: int = 42
+
 
 RATE_OFF_PEAK: float = 0.39940  # real E-TOU-C summer off-peak ($/kWh), LP representative
 RATE_ON_PEAK:  float = 0.52240  # real E-TOU-C summer peak 16:00-21:00 ($/kWh)
 
-EXPORT_RATE:   float = 0.038   # NEM 3.0 net billing avoided-cost
+EXPORT_RATE:   float = 0.038   # NEM 3.0 net billing avoided-cost; was 0.04
 
 # NEM 3.0 export tiering
 NEM3_ANNUAL_EXPORT_CAP_KWH: float = 3_000.0   # Full credit up to this
 NEM3_AVOIDED_RATE:          float = 0.022       # Rate above the cap
 
-# CAISO grid average emissions intensity (gCO2/kWh) - 2023 annual hourly avg
+# CAISO grid average emissions intensity (gCO2/kWh) — 2023 annual hourly avg
 CO2_BY_HOUR: Dict[int, float] = {
      0: 296,  1: 287,  2: 280,  3: 276,  4: 276,  5: 289,
      6: 303,  7: 282,  8: 235,  9: 179, 10: 143, 11: 125,
@@ -81,14 +82,13 @@ BOOTSTRAP_RESAMPLES: int   = 10_000
 BOOTSTRAP_CI_ALPHA:  float = 0.05
 RAMP_WINDOW_HOURS:   Tuple[int, int] = (20, 23)
 
+# PG&E B-1 demand charge
 DEMAND_CHARGE_RATE_USD_PER_KW_MONTH: float = 37.37   # $/kW/month, PG&E B-19 2024
 
-# EnergyPlus day-of-yearcalendar month 
 _MONTH_END_DOY: List[int] = [31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
 
-# Building archetypes 
 ARCHETYPES: List[Dict[str, Any]] = [
-    {   # A0 - modern south-facing (best solar, tightest construction)
+    {   # A0 — modern south-facing
         "label":       "A0_Modern_South",
         "description": "Post-2010, south-facing, 2,050 sqft equiv. (Title 24 2022)",
         "north_axis":  0,
@@ -99,18 +99,18 @@ ARCHETYPES: List[Dict[str, Any]] = [
         "infil_scale": 0.70,     # tight envelope
         "load_scale":  1.00,     # baseline (850 W lights, 850 W equip)
     },
-    {   # A1 - pre-code east-facing (worst envelope, east solar)
+    {   # A1 — pre-code east-facing
         "label":       "A1_PreCode_East",
         "description": "Pre-1978, east-facing, 1,750 sqft equiv. (pre-code construction)",
         "north_axis":  90,
-        "pv_frac":     0.55,     # reduced - partial roof shading typical of 1970s ranch
+        "pv_frac":     0.55,     # reduced — partial roof shading typical of 1970s ranch
         "in02_thick":  0.0508,   # R-11 wall batt (minimum 1975 MEC)
         "in46_thick":  0.0508,   # R-11 attic (pre-code)
         "in05_thick":  0.0832,   # attic IN05 (cond 0.043) matched to same R as in46
         "infil_scale": 1.50,     # leaky old construction
         "load_scale":  0.85,     # smaller floor area
     },
-    {   # A2 - modern north-facing (worst PV, large house)
+    {   # A2 — modern north-facing 
         "label":       "A2_Modern_North",
         "description": "Post-2010, north-facing, 2,350 sqft equiv. (low PV yield)",
         "north_axis":  180,
@@ -121,7 +121,7 @@ ARCHETYPES: List[Dict[str, Any]] = [
         "infil_scale": 0.70,
         "load_scale":  1.15,     # larger house
     },
-    {   # A3 - mid-code west-facing (afternoon peak solar, moderate insulation)
+    {   # A3 — mid-code west-facing 
         "label":       "A3_MidCode_West",
         "description": "1990s code, west-facing, 1,450 sqft equiv. (afternoon peak)",
         "north_axis":  270,
@@ -132,7 +132,7 @@ ARCHETYPES: List[Dict[str, Any]] = [
         "infil_scale": 1.10,     # moderate leakage
         "load_scale":  0.70,     # smaller house
     },
-    {   # A4 — large modern SE-facing (best compromise, largest house)
+    {   # A4 — large modern SE-facing 
         "label":       "A4_Large_ModernSE",
         "description": "Post-2010, SE-facing, 2,650 sqft equiv. (largest archetype)",
         "north_axis":  45,
@@ -149,20 +149,23 @@ ARCHETYPES: List[Dict[str, Any]] = [
 # 2.  CONFIGURATION
 
 class SwarmConfig:
-    
+    """
+    Central configuration.  Paths resolved to absolute at load time.
+    EnergyPlus executable auto-detected if not explicitly set.
+    """
     ENERGYPLUS_EXE: Optional[Path] = None
 
     SOURCE_IDF      = Path("HVACTemplate-5ZonePTHP.idf")
-    FINAL_IDF       = Path("HVACTemplate-5ZonePTHP_Run.idf")    
-
+    FINAL_IDF       = Path("HVACTemplate-5ZonePTHP_Run.idf")    # A0 alias
+    # FIX-ARCHETYPE (v6.0): per-archetype compiled IDF paths (A0..A4).
+    # Populated by _build_idf(); assigned to each house via house_index % 5.
     ARCHETYPE_IDF_PATHS: List[Path] = []
     WEATHER_FILE    = Path("USA_CA_San.Francisco.Intl.AP.724940_TMY3.epw").resolve()
     FLEET_DATA_FILE = Path("NHTS_Fleet_Data.csv")
     PLUGIN_FILE     = Path("OccupancyPlugin.py").resolve()
 
-    # i.i.d. STAGGER ABLATION  
-
-    ABLATION_ARM:           str       = "vdc"      # "off" | "vdc" | "iid"
+    # i.i.d. STAGGER ABLATION 
+    ABLATION_ARM:           str       = "off"      # "off" | "vdc" | "iid"
     ABLATION_SCENARIOS:     List[int] = [1]
     PYTHONHASHSEED_VALUE:   int       = 42
 
@@ -172,10 +175,9 @@ class SwarmConfig:
     EV_PENETRATION_RATES: List[float] = [0.25, 0.50, 0.75, 1.00]
     INELASTICITY_RATIOS:  List[float] = [0.10, 0.30, 0.50]
 
-    # BATTERY-PENETRATION SENSITIVITY
     BATTERY_PEN_SWEEP:          bool        = False
     BATTERY_PENETRATION_RATES:  List[float] = [0.25, 0.50, 0.75, 1.00]
-    BATTERY_PEN_SWEEP_EV_PEN:   float       = 0.25 
+    BATTERY_PEN_SWEEP_EV_PEN:   float       = 0.25   # EV fleet pinned LOW, where the
 
     MARKOV_PERSISTENCE_LEVELS: List[float] = [0.40, 0.60, 0.80]
 
@@ -197,14 +199,14 @@ class SwarmConfig:
 
     @staticmethod
     def swept_penetration_rates() -> "List[float]":
-
+ 
         return (SwarmConfig.BATTERY_PENETRATION_RATES
                 if SwarmConfig.BATTERY_PEN_SWEEP
                 else SwarmConfig.EV_PENETRATION_RATES)
 
     @staticmethod
     def plugin_stagger_mode() -> str:
- 
+
         try:
             tree = ast.parse(SwarmConfig.PLUGIN_FILE.read_text(encoding="utf-8"))
         except (OSError, SyntaxError):
@@ -224,7 +226,7 @@ class SwarmConfig:
 
     @staticmethod
     def plugin_sim_seed() -> "Optional[int]":
-
+  
         try:
             tree = ast.parse(SwarmConfig.PLUGIN_FILE.read_text(encoding="utf-8"))
         except (OSError, SyntaxError):
@@ -349,7 +351,6 @@ class SwarmConfig:
 
     @classmethod
     def resolve(cls) -> None:
-        """Auto-detect EnergyPlus executable on all major platforms."""
         if cls.ENERGYPLUS_EXE is not None and cls.ENERGYPLUS_EXE.exists():
             return
 
@@ -365,7 +366,7 @@ class SwarmConfig:
             candidates += sorted(
                 Path("/Applications").glob("EnergyPlus*"), reverse=True)
             exe_name = "energyplus"
-        else:   
+        else:   # Linux
             for prefix in [Path("/usr/local"), Path("/opt"), Path.home()]:
                 candidates += sorted(prefix.glob("EnergyPlus*"), reverse=True)
             exe_name = "energyplus"
@@ -390,7 +391,10 @@ class SwarmConfig:
 # 3.  PRE-FLIGHT VALIDATOR
 
 class ConfigValidator:
-
+    """
+    Validates config_house_XX.json files and the compiled IDF before
+    any compute is spent.
+    """
 
     REQUIRED_KEYS        = {"house_id", "max_capacity", "probs", "profiles"}
     REQUIRED_MONTHS      = set(range(1, 13))
@@ -443,6 +447,7 @@ class ConfigValidator:
                     errors.append(f"'{key}' contains negatives")
 
         profiles = data["profiles"]
+
         if len(profiles) < 2:
             errors.append(f"Expected at least 2 profiles, found {len(profiles)}")
             
@@ -494,7 +499,7 @@ class ConfigValidator:
                 logger.info(f"[IDF-VALIDATE] Geographic check OK: {loc_name}")
         else:
             logger.warning(
-                "[IDF-VALIDATE] Site:Location not found - "
+                "[IDF-VALIDATE] Site:Location not found — "
                 "cannot verify geographic consistency (F-02).")
 
         ts_m = re.search(r"Timestep\s*,\s*(\d+)\s*;", tokens, re.I)
@@ -509,9 +514,7 @@ class ConfigValidator:
             
         return ok
 
-
-# 4.  FREE-FUNCTION WORKER  (module-level for ProcessPoolExecutor pickling)
-
+# 4.  FREE-FUNCTION WORKER 
 def _worker_task(
     config_path_str:  str,
     scenario:         int,
@@ -522,8 +525,8 @@ def _worker_task(
     fleet_entry:      Optional[Dict],
     house_dir_str:    str,
     retry_number:     int,
-    has_battery:      bool  = True,  # battery-penetration sensitivity (default: has one)
-    archetype_idf_str: str   = "",   
+    has_battery:      bool  = True,  # battery-penetration sensitivity 
+    archetype_idf_str: str   = "",   # FIX-ARCHETYPE 
     markov_rho:        float = 0.60, # MARKOV-SENS 
 
     ep_exe_str:   str = "",   # str(SwarmConfig.ENERGYPLUS_EXE)
@@ -539,14 +542,14 @@ def _worker_task(
     house_id = config_path.stem.replace("config_", "").lower().strip()
     pen_str  = int(pen_rate  * 100)
     inel_str = int(inel_rate * 100)
-    rho_str  = int(round(markov_rho * 100))  
+    rho_str  = int(round(markov_rho * 100))  # FIX-LABEL-RHO (v9.3)
     label    = (f"[Rho:{rho_str}%|Pen:{pen_str:>3}%|Inel:{inel_str:>2}%|S{scenario}"
                 f"|r{retry_number}] {house_id}")
 
     sidecar  = house_dir / (sidecar_name or SwarmConfig.SIDECAR_FILENAME)
     end_file = house_dir / "eplusout.end"
 
-    # Resume check (only skip on first attempt)
+    # Resume check 
     if retry_number == 0 and end_file.exists() and sidecar.exists():
         return {"status": "skipped", "label": label, "duration": 0.0}
 
@@ -562,7 +565,7 @@ def _worker_task(
             "has_ev":             has_ev,
             "has_battery":        has_battery,   # battery-penetration sensitivity
             "inelasticity_ratio": inel_rate,
-            "markov_rho":         markov_rho,  # MARKOV-SENS
+            "markov_rho":         markov_rho,  # MARKOV-SENS 
         })
         # S5 (one-way broadcast)
         if scenario == 5:
@@ -571,23 +574,23 @@ def _worker_task(
                              f"_Inel{inel_str}_S1.csv")
             house_data["broadcast_csv"] = str(_bcast_path)
         if has_ev and fleet_entry:
-
             house_data.update({
                 "ev_arrival_hour": float(fleet_entry.get("Arrival_Hour", -1.0)),
                 "ev_distance":     float(fleet_entry.get("Distance_Miles", 37.5)),
             })
         elif has_ev and not fleet_entry:
-            pass   # config JSON already contains RUNTIME_DEFAULTS from ExtractBrainsIntoJSON
+
+            pass   
         elif not has_ev:
             house_data["ev_arrival_hour"] = -1.0
 
         (house_dir / "occupancy_config.json").write_text(
             json.dumps(house_data, indent=2), encoding="utf-8")
             
-        # copy per-house archetype IDF
+        # ARCHETYPE
         idf_src = Path(archetype_idf_str) if archetype_idf_str else Path(plugin_str).parent / "HVACTemplate-5ZonePTHP_Run.idf"
         if not idf_src.exists():
-            idf_src = Path(plugin_str).parent / "HVACTemplate-5ZonePTHP_Run.idf"  # graceful fallback
+            idf_src = Path(plugin_str).parent / "HVACTemplate-5ZonePTHP_Run.idf" 
             
         shutil.copy2(str(idf_src), str(house_dir / "Local_Run.idf"))
         shutil.copy2(plugin_str or str(SwarmConfig.PLUGIN_FILE),
@@ -595,6 +598,7 @@ def _worker_task(
 
         proc_env = os.environ.copy()
         proc_env["ENERGYPLUS_OUTPUT_DIR"] = str(house_dir)
+
         proc_env["PYTHONHASHSEED"] = str(SwarmConfig.PYTHONHASHSEED_VALUE)
         proc_env["PYTHONPATH"] = (
             str(house_dir) + os.pathsep + proc_env.get("PYTHONPATH", ""))
@@ -695,8 +699,9 @@ def _bootstrap_ci_bca(
 
     theta = stat_fn(values)
 
+    # Bias-correction
     prop_below = float(np.mean(boot < theta))
-    # Clamp strictly inside (0,1) to keep ppf finite; 0.5/n is the Laplace prior
+    # Clamp strictly inside (0,1) to keep ppf finite
     prop_below = np.clip(prop_below, 0.5 / n_resamples, 1.0 - 0.5 / n_resamples)
     z0 = float(_scipy_norm.ppf(prop_below))
 
@@ -715,7 +720,7 @@ def _bootstrap_ci_bca(
     def _adjusted_p(z_alpha: float) -> float:
         numer = z0 + z_alpha
         denom = 1.0 - a * numer
-        # Guard: if denom <= 0 the BCa correction diverges; fall back to z_alpha
+        # if denom ≤ 0 the BCa correction diverges
         if abs(denom) < 1e-12:
             return float(_scipy_norm.cdf(z_alpha))
         return float(_scipy_norm.cdf(z0 + numer / denom))
@@ -765,11 +770,9 @@ def _compute_demand_charge_annual(
     dt_hr:      float,
 ) -> float:
 
-    import_w  = np.maximum(comm_net_w, 0.0)           # W - converted to kW below
+    import_w  = np.maximum(comm_net_w, 0.0)           # W — converted to kW below
     month_end = np.array(_MONTH_END_DOY)               # [31, 59, …, 365]
 
-    # Map day-of-year (1-365) to month (1-12) using right-side searchsorted.
-    # day_arr - 1 converts to 0-indexed day before applying cumulative bounds.
     month_arr = np.searchsorted(month_end, day_arr - 1, side="right") + 1
     month_arr = np.clip(month_arr, 1, 12).astype(int)
 
@@ -789,7 +792,7 @@ def _aggregate_one_condition(
     pen_rate:     float,
     inel_rate:    float,
     scenario:     int,
-    markov_rho:   float = 0.60,  # MARKOV-SENS
+    markov_rho:   float = 0.60,  # MARKOV-SENS 
 ) -> Optional[Dict]:
 
     base_dir = Path(base_dir_str)
@@ -824,7 +827,6 @@ def _aggregate_one_condition(
         if not dfs:
             return None
 
-        # infer dt_hr from first available sidecar
         dt_hr = _infer_dt_hr(dfs[0].reset_index())
 
         common_idx = dfs[0].index
@@ -838,7 +840,7 @@ def _aggregate_one_condition(
         if len(common_idx) < _MIN_COMMON_FRAC * max_len:
             common_frac = len(common_idx) / max(1, max_len)
 
-            _OLD_TSKEY_RATIO = 29.0 / 144.0   # ≈ 0.2014
+            _OLD_TSKEY_RATIO = 29.0 / 144.0   
             _OLD_TSKEY_TOL   = 0.005
             looks_like_old_tskey_bug = (
                 abs(common_frac - _OLD_TSKEY_RATIO) < _OLD_TSKEY_TOL
@@ -876,12 +878,13 @@ def _aggregate_one_condition(
         ev_w_all   = np.stack([df["ev_w"].values        for df in aligned])
         batt_w_all = np.stack([df["battery_w"].values  for df in aligned])
 
-        # read building_w from sidecar (HVAC + lights + equipment).
+        # IMPLEMENT-BILL-DECOMP: read building_w from sidecar (HVAC +
+        # lights + equipment)
         if all("building_w" in df.columns for df in aligned):
             building_w_all = np.stack(
                 [df["building_w"].values for df in aligned])
         else:
-            # Backward-compat fallback (algebraic recovery)
+            # Backward-compat fallback 
             building_w_all = net_w_all - ev_w_all - batt_w_all + pv_w_all
             warnings.warn(
                 f"[v11.0] sidecar lacks building_w; recovered algebraically.",
@@ -908,7 +911,7 @@ def _aggregate_one_condition(
         comm_pv_w       = pv_w_all.sum(axis=0)
         comm_ev_w       = ev_w_all.sum(axis=0)
         comm_batt_w     = batt_w_all.sum(axis=0)
-        comm_building_w = building_w_all.sum(axis=0)   
+        comm_building_w = building_w_all.sum(axis=0)   # v11.0
 
         prices_arr = ref_df["price_usd_kwh"].values.astype(float)
         co2_arr    = ref_df["co2_g_kwh"].values.astype(float)
@@ -928,17 +931,17 @@ def _aggregate_one_condition(
 
         n_houses = len(aligned)
 
-        # Coincidence Factor
+        
         import_w   = np.maximum(comm_net_w, 0.0)
         t_star     = int(import_w.argmax())                    # community peak timestep
         P_peak     = float(import_w[t_star])
 
+        # Per-house ANNUAL maximum 
         per_house_peak_w = np.maximum(net_w_all, 0.0).max(axis=1)   # shape (n_houses,)
         sum_indiv_peaks  = float(per_house_peak_w.sum())
         CF               = P_peak / sum_indiv_peaks if sum_indiv_peaks > 0 else 1.0
 
-        # Bootstrap CI on CF - resample houses (community composition uncertainty).
-
+        # Bootstrap CI on CF — resample houses
         def _cf_stat(idx_sample):
             sub_net   = net_w_all[idx_sample, :]                 # (k, T)
             sub_comm  = sub_net.sum(axis=0)
@@ -949,7 +952,6 @@ def _aggregate_one_condition(
         rng_arr = np.arange(n_houses)
         cf_lo, cf_hi = _bootstrap_ci(rng_arr, _cf_stat)
 
-        # ON-PEAK-WINDOW rebound metrics (16:00–21:00 TOU peak block)
         onpeak_mask = np.isin(hour_arr, range(16, 21))
         if onpeak_mask.sum() > 0:
             _imp_op   = np.maximum(comm_net_w[onpeak_mask], 0.0)
@@ -991,6 +993,13 @@ def _aggregate_one_condition(
         total_bill_usd    = E_cost_usd + demand_charge_usd
 
         # IMPLEMENT-BILL-DECOMP: per-component bill attribution
+        # The four reported components:
+        #   E_baseline_cost_usd  = building's share of import cost
+        #   E_ev_cost_usd        = EV's share of import cost (G2V net of V2G in net_w)
+        #   E_batt_cost_usd      = battery's share of import cost - discharge offset
+        #   E_pv_credit_usd      = NEM 3.0 export credit (positive number)
+        # And by construction:
+        #   E_baseline + E_ev + E_batt - E_pv_credit  =  E_cost_usd
 
         _import_w  = np.maximum(comm_net_w, 0.0)
         _export_w  = np.maximum(-comm_net_w, 0.0)
@@ -1014,7 +1023,7 @@ def _aggregate_one_condition(
         _ev_cost   = float(np.sum(_share_ev   * _import_per_ts_cost))
         _batt_cost = float(np.sum(_share_batt * _import_per_ts_cost))
 
-        # PV export credit (matches _compute_cost_vectorised exactly).
+        # PV NEM 3.0 export credit (matches _compute_cost_vectorised exactly).
         _total_export_kwh = float((_export_w / 1000.0 * dt_hr).sum())
         _within_cap = min(_total_export_kwh, NEM3_ANNUAL_EXPORT_CAP_KWH)
         _above_cap  = max(0.0, _total_export_kwh - _within_cap)
@@ -1026,21 +1035,21 @@ def _aggregate_one_condition(
         _decomp_err_pct = (abs(_component_sum - E_cost_usd)
                            / max(abs(E_cost_usd), 1.0)) * 100.0
 
-        # ADD-PEAK-COMPONENT-ATTRIB: per-component contribution at t*
+        # ADD-PEAK-COMPONENT-ATTRIB: per-component contribution at t* 
         P_peak_building_kw = float(comm_building_w[t_star]) / 1000.0
         P_peak_ev_kw       = float(comm_ev_w[t_star])       / 1000.0
         P_peak_batt_kw     = float(comm_batt_w[t_star])     / 1000.0
         P_peak_pv_kw       = float(comm_pv_w[t_star])       / 1000.0
 
-        # IMPLEMENT-OPTIMAL-LB: lower-bound benchmarks on demand charge 
+        # IMPLEMENT-OPTIMAL-LB
+
         E_total_kwh_year   = float(_import_w.sum() * dt_hr / 1000.0)
         P_uniform_kw       = E_total_kwh_year / 8_760.0
-        # PG&E B-1: $19.71 / kW / month × 12 months
+        # PG&E B-1: $19.71 / kW / month * 12 months
         demand_charge_lb_uniform_usd = (
             P_uniform_kw * DEMAND_CHARGE_RATE_USD_PER_KW_MONTH * 12.0)
 
-
-        lp_opf_status = "ok"     # populated below; emitted into CSV
+        lp_opf_status = "ok"     
 
         lp_opf_peak_kw   = float("nan")
         lp_opf_peak_hour = -1
@@ -1053,14 +1062,13 @@ def _aggregate_one_condition(
             hours_per_step = max(1, n_steps // n_hours)
             n_hours = n_steps // hours_per_step
 
-            # Convert W → kW during aggregation
+            # Convert W, kW during aggregation
             comm_bld_hourly_kw = (comm_building_w[:n_hours * hours_per_step]
                                   .reshape(n_hours, hours_per_step).mean(axis=1)) / 1000.0
             comm_ev_hourly_kw  = (comm_ev_w[:n_hours * hours_per_step]
                                   .reshape(n_hours, hours_per_step).mean(axis=1)) / 1000.0
             comm_pv_hourly_kw  = (comm_pv_w[:n_hours * hours_per_step]
                                   .reshape(n_hours, hours_per_step).mean(axis=1)) / 1000.0
-            # OPF-BATTERY: aggregate battery for the LP-OPF epigraph
             comm_batt_hourly_kw = (comm_batt_w[:n_hours * hours_per_step]
                                    .reshape(n_hours, hours_per_step).mean(axis=1)) / 1000.0
 
@@ -1070,13 +1078,12 @@ def _aggregate_one_condition(
             bld_24_kw  = comm_bld_hourly_kw[:n_use].reshape(n_days, 24).mean(axis=0)
             ev_24_kw   = comm_ev_hourly_kw[:n_use].reshape(n_days, 24).mean(axis=0)
             pv_24_kw   = comm_pv_hourly_kw[:n_use].reshape(n_days, 24).mean(axis=0)
-            # OPF-BATTERY: 24-hr battery profile for LP epigraph
             batt_24_kw = comm_batt_hourly_kw[:n_use].reshape(n_days, 24).mean(axis=0)
 
             # G2V / V2G decomposition
-            g2v_24_kw = np.maximum(ev_24_kw,  0.0)   # charging draw, >= 0
-            v2g_24_kw = np.maximum(-ev_24_kw, 0.0)   # discharge magnitude, >= 0
-            # Daily totals (kWh, since we hourly-aggregated and dt = 1 h here)
+            g2v_24_kw = np.maximum(ev_24_kw,  0.0)   # charging draw
+            v2g_24_kw = np.maximum(-ev_24_kw, 0.0)   # discharge magnitude
+            # Daily totals
             E_g2v_day_kwh = float(np.sum(g2v_24_kw))
             E_v2g_day_kwh = float(np.sum(v2g_24_kw))
 
@@ -1087,11 +1094,11 @@ def _aggregate_one_condition(
 
             # LP variables: x_0..x_23 (hourly community G2V charging in kW)
             #               + p (annual peak in kW)
-            # Energy budget: Σ x_h × 1h = E_g2v_day_kwh   (>= 0 by construction)
-            # Per-hour bound: 50 EVs × 7 kW = 350 kW absolute community max
+            # Energy budget: sigma x_h * 1h = E_g2v_day_kwh   
+            # Per-hour bound: 50 EVs * 7 kW = 350 kW absolute community max
             P_ev_max_kw  = max(50.0, n_houses * 7.0)
 
-            # Objective: 365 × Σ price_h × x_h + DEMAND × 12 × p
+            # Objective: 365 * sigma price_h * x_h + DEMAND * 12 * p
             c = np.concatenate([_hourly_prices * 365.0,
                                 [DEMAND_CHARGE_RATE_USD_PER_KW_MONTH * 12.0]])
 
@@ -1101,9 +1108,7 @@ def _aggregate_one_condition(
             A_eq = np.concatenate([np.ones(24), [0.0]]).reshape(1, -1)
             b_eq = np.array([E_g2v_day_kwh])
 
-            # Inequality (epigraph): for each h,
-            #   bld_h + x_h + batt_h - pv_h - v2g_h <= p
-            # ⇔ x_h - p <= pv_h + v2g_h - bld_h - batt_h
+            # Inequality (epigraph)
             A_ub = np.zeros((24, 25))
             for h_ in range(24):
                 A_ub[h_, h_] = 1.0
@@ -1183,7 +1188,7 @@ def _aggregate_one_condition(
                 # Inflexible base = community net minus EV draw.
                 _base_kw = _grid_kw - _ev_kw_all.sum(axis=0)
                 _flex_energy_kwh = float(_ev_kw_all.sum() * dt_hr)
-
+                # Achievable peak = water-filling minimum
                 import fair_benchmarks as _fb
                 _win_mask = (hour_arr >= 21) | (hour_arr < 7)
                 _achievable_peak_kw = _fb.min_peak_waterfill(
@@ -1193,7 +1198,7 @@ def _aggregate_one_condition(
                         (_actual_peak_kw - _achievable_peak_kw)
                         / _achievable_peak_kw * 100.0, 2)
 
-                # (ii) corrected active-set certificate from EV-active intervals.
+                # corrected active-set certificate from EV-active intervals.
                 _active = (_ev_kw_all > 1e-3)                    # (n_houses, T) bool
                 _count = _active.sum(axis=0).astype(float)       # A(t)
                 if _count.max() > 0:
@@ -1224,16 +1229,15 @@ def _aggregate_one_condition(
             except Exception as _fb_exc:
                 print(f"[FAIR-BENCH] disabled: {type(_fb_exc).__name__}: {_fb_exc}")
 
-        # CO2 - ELECTRIC-ONLY grid carbon
-
+        # CO2- ELECTRIC-ONLY grid carbon
         E_carbon_kg = float(
             (np.maximum(comm_net_w, 0.0) / 1000.0 * dt_hr
              * co2_arr / 1000.0).sum())
 
-        # E_ev_kwh historically = Σ max(comm_ev_w, 0) × dt — i.e. GROSS grid
+        # EV energy 
         E_ev_kwh = float(np.maximum(comm_ev_w, 0.0).sum() * dt_hr / 1000.0)
 
-        E_ev_grid_import_kwh = E_ev_kwh   # by definition; same column, named honestly
+        E_ev_grid_import_kwh = E_ev_kwh   
         E_ev_grid_export_kwh = float(
             np.maximum(-comm_ev_w, 0.0).sum() * dt_hr / 1000.0)
 
@@ -1328,8 +1332,7 @@ def _aggregate_one_condition(
             L_p_baseline_kw  = float("nan")
             L_community      = float("nan")
 
-        # FAIRNESS-INDEX: Jain's fairness index of per-house bills
-        # J = (Σ x_i)² / (n × Σ x_i²) ∈ [1/n, 1]
+        # ADD-FAIRNESS-INDEX
         try:
             per_house_import_w   = np.maximum(net_w_all, 0.0)              # (n_houses, T)
             per_house_import_kwh = per_house_import_w / 1000.0 * dt_hr     # (n_houses, T)
@@ -1354,6 +1357,7 @@ def _aggregate_one_condition(
             "community_ev_kw":    comm_ev_w   / 1000.0,
             "community_batt_kw":  comm_batt_w / 1000.0,
         })
+ 
         ts_dir  = base_dir / f"Rho{rho_pct}_Pen{pen_str}_Inel{inel_str}"
         ts_dir.mkdir(parents=True, exist_ok=True)
         ts_path = (ts_dir
@@ -1364,7 +1368,7 @@ def _aggregate_one_condition(
             "pen_rate":              pen_rate,
             "inel_rate":             inel_rate,
             "scenario":              scenario,
-            "markov_rho":            markov_rho, 
+            "markov_rho":            markov_rho,  # MARKOV-SENS
             "n_houses":              n_houses,
             "dt_hr":                 round(dt_hr, 5),
             "P_community_peak_kw":   round(P_peak / 1000.0, 4),
@@ -1382,46 +1386,36 @@ def _aggregate_one_condition(
             "E_annual_kwh":          round(E_annual_kwh, 2),
             "E_pv_kwh":              round(E_pv_kwh,     2),
             "E_ev_kwh":              round(E_ev_kwh,     2),
-            # EV-ENERGY-SPLIT - unambiguous EV grid energy 
             "E_ev_grid_import_kwh":  round(E_ev_grid_import_kwh, 2),
             "E_ev_grid_export_kwh":  round(E_ev_grid_export_kwh, 2),
             "E_cost_usd":            round(E_cost_usd,        2),
             "demand_charge_usd":     round(demand_charge_usd, 2),
             "total_bill_usd":        round(total_bill_usd,    2),
             "E_carbon_kg":           round(E_carbon_kg,       2),
-            # IMPLEMENT-BILL-DECOMP - four-component bill attribution
             "E_baseline_cost_usd":   round(_bld_cost,  2),
             "E_ev_cost_usd":         round(_ev_cost,   2),
             "E_batt_cost_usd":       round(_batt_cost, 2),
             "E_pv_credit_usd":       round(_pv_credit, 2),
             "decomp_err_pct":        round(_decomp_err_pct, 4),
-            # ADD-PEAK-COMPONENT-ATTRIB - components at t*
             "P_peak_building_kw":    round(P_peak_building_kw, 4),
             "P_peak_ev_kw":          round(P_peak_ev_kw,       4),
             "P_peak_batt_kw":        round(P_peak_batt_kw,     4),
             "P_peak_pv_kw":          round(P_peak_pv_kw,       4),
-            # IMPLEMENT-OPTIMAL-LB - centralized OPF benchmarks
             "demand_charge_lb_uniform_usd": round(demand_charge_lb_uniform_usd, 2),
             "demand_charge_lb_opf_usd":     round(demand_charge_lb_opf_usd, 2)
                 if demand_charge_lb_opf_usd == demand_charge_lb_opf_usd
                 else float("nan"),
             "optimality_gap_pct":           optimality_gap_pct,
-            # communication-free frontier gap
             "comm_free_oracle_gap_pct":     comm_free_gap_pct,
-
             "active_set_rho_cert":          active_set_rho_cert,
-
             "lp_opf_status":         lp_opf_status,
             "lp_opf_g2v_day_kwh":    round(E_g2v_day_kwh, 2)
                 if E_g2v_day_kwh == E_g2v_day_kwh else float("nan"),
             "lp_opf_v2g_day_kwh":    round(E_v2g_day_kwh, 2)
                 if E_v2g_day_kwh == E_v2g_day_kwh else float("nan"),
-            # LP-OPF-DISCLOSURE - benchmark transparency
             "lp_opf_peak_kw":        round(lp_opf_peak_kw, 4)
                 if lp_opf_peak_kw == lp_opf_peak_kw else float("nan"),
             "lp_opf_peak_hour":      int(lp_opf_peak_hour),
-            # LYAPUNOV COMMUNITY-AGGREGATION 
-
             "L_community":          round(L_community, 6)
                 if L_community == L_community else float("nan"),
             "L_per_house_max":      round(L_per_house_max, 6)
@@ -1429,7 +1423,6 @@ def _aggregate_one_condition(
             "L_n_elastic":          int(L_n_elastic),
             "L_p_baseline_kw":      round(L_p_baseline_kw, 4)
                 if L_p_baseline_kw == L_p_baseline_kw else float("nan"),
-            # ADD-FAIRNESS-INDEX - Jain's fairness over per-house bills
             "jain_fairness":        round(jain_fairness, 6)
                 if jain_fairness == jain_fairness else float("nan"),
         }
@@ -1442,13 +1435,7 @@ def _aggregate_one_condition(
 
 
 def _compute_ratios(df: pd.DataFrame) -> pd.DataFrame:
-    """
-      SRE_ratio = CF(S2) / CF(S0)   — TOU rebound vs uncontrolled baseline.
-      MIT_ratio = CF(S1) / CF(S2)   — Algorithm 1 mitigation of TOU rebound.
-      VF_ratio  = CF(S4) / CF(S1)   — Valley-filling vs Algorithm 1.
-                  VF_ratio > 1 → Algorithm 1 attains the lower CF.
-                  VF_ratio < 1 → valley-filling attains the lower CF. 
-    """
+
     df = df.copy()
     for col in ("SRE_ratio", "SRE_ci_lo", "SRE_ci_hi",
                 "MIT_ratio", "MIT_ci_lo", "MIT_ci_hi",
@@ -1473,7 +1460,7 @@ def _compute_ratios(df: pd.DataFrame) -> pd.DataFrame:
         cf2 = cf.get(2, float("nan"))
         cf4 = cf.get(4, float("nan"))
 
-        # on-peak CF: SRE=CF(S2)/CF(S0), MIT=CF(S1)/CF(S2), VF=CF(S4)/CF(S1).
+        # on-peak-window (16:00-21:00) rebound ratios
         if "CF_onpeak" in grp.columns:
             cf_op = grp.set_index("scenario")["CF_onpeak"].to_dict()
             op0, op1 = cf_op.get(0, float("nan")), cf_op.get(1, float("nan"))
@@ -1485,6 +1472,7 @@ def _compute_ratios(df: pd.DataFrame) -> pd.DataFrame:
             if op4 == op4 and op1 == op1 and op1 > 0:
                 df.loc[idx, "VF_onpeak"] = op4 / op1
 
+        # SRE_ratio
         if cf0 == cf0 and cf2 == cf2 and cf0 > 0:
             sre = cf2 / cf0
             s2_lo, s2_hi = ci_lo.get(2, float("nan")), ci_hi.get(2, float("nan"))
@@ -1494,7 +1482,7 @@ def _compute_ratios(df: pd.DataFrame) -> pd.DataFrame:
                 df.loc[idx, "SRE_ci_lo"] = s2_lo / s0_hi
                 df.loc[idx, "SRE_ci_hi"] = s2_hi / s0_lo
 
-        # MIT_ratio: Algorithm 1 (S1) vs TOU rebound (S2)
+        # MIT_ratio: Algorithm (S1) vs TOU rebound (S2)
         if cf1 == cf1 and cf2 == cf2 and cf2 > 0:
             mit = cf1 / cf2
             s1_lo, s1_hi = ci_lo.get(1, float("nan")), ci_hi.get(1, float("nan"))
@@ -1504,8 +1492,7 @@ def _compute_ratios(df: pd.DataFrame) -> pd.DataFrame:
                 df.loc[idx, "MIT_ci_lo"] = s1_lo / s2_hi
                 df.loc[idx, "MIT_ci_hi"] = s1_hi / s2_lo
 
-        # VF_ratio: valley-filling (S4) relative to Algorithm 1 (S1)
-        # VF_ratio > 1 means Algorithm 1 achieves lower CF (better) than valley-fill
+        # VF_ratio
         if cf4 == cf4 and cf1 == cf1 and cf1 > 0:
             vf = cf4 / cf1
             s4_lo, s4_hi = ci_lo.get(4, float("nan")), ci_hi.get(4, float("nan"))
@@ -1515,7 +1502,7 @@ def _compute_ratios(df: pd.DataFrame) -> pd.DataFrame:
                 df.loc[idx, "VF_ci_lo"] = s4_lo / s1_hi
                 df.loc[idx, "VF_ci_hi"] = s4_hi / s1_lo
 
-        # HYB_ratio: hybrid (S5) relative to Algorithm 1 (S1) 
+        # HYB_ratio
         cf5 = cf.get(5, float("nan"))
         if cf5 == cf5 and cf1 == cf1 and cf1 > 0:
             df.loc[idx, "HYB_ratio"] = cf5 / cf1
@@ -1540,6 +1527,7 @@ class CommunityAggregator:
         self.logger.info("[Aggregator] Starting community-level SRE analysis...")
         t0 = time.monotonic()
 
+        # MARKOV-SENS
         conditions: List[Tuple[float, float, int, float]] = []
         for rho in SwarmConfig.MARKOV_PERSISTENCE_LEVELS:
             rho_pct = int(round(rho * 100))
@@ -1637,7 +1625,7 @@ class CommunityAggregator:
                         if n_violate > 0:
                             self.logger.warning(
                                 f"[Lyapunov v12.3] {n_violate}/{len(L_vals)} "
-                                f"S1 cells have L_community ≥ 1 - Algorithm-1 "
+                                f"S1 cells have L_community ≥ 1 — Algorithm-1 "
                                 f"mitigation NOT guaranteed at those operating "
                                 f"points.  Paper Section VI-E should disclose.")
                         else:
@@ -1647,7 +1635,7 @@ class CommunityAggregator:
                                 f"empirically corroborated.")
                     else:
                         self.logger.warning(
-                            "[Lyapunov v12.3] No L_community values for S1 - "
+                            "[Lyapunov v12.3] No L_community values for S1 — "
                             "check eplusout.err parsing (regex may have failed).")
         except Exception as _exc:
             self.logger.warning(
@@ -1677,16 +1665,16 @@ class CommunityAggregator:
     # Sobol 
 
     def _run_sobol(self, df: pd.DataFrame) -> None:
-        
-        self.logger.info("[Sobol] v10.0 SOTA - 3-factor (pen, inel, rho); "
+
+        self.logger.info("[Sobol] v10.0 SOTA — 3-factor (pen, inel, rho); "
                          "discrete-grid + GP-surrogate dual analysis.")
 
         sre_valid = df.dropna(subset=["SRE_ratio"]).copy()
         if "markov_rho" not in sre_valid.columns:
-            self.logger.warning("[Sobol] markov_rho column missing - skipping.")
+            self.logger.warning("[Sobol] markov_rho column missing — skipping.")
             return
 
-        # Collapse to 36 unique condition cells (SRE_ratio is invariant to scenario)
+        # Collapse to 36 unique condition cells
         cond_df = (
             sre_valid.drop_duplicates(subset=["pen_rate", "inel_rate", "markov_rho"])
                      [["pen_rate", "inel_rate", "markov_rho", "SRE_ratio"]]
@@ -1706,7 +1694,7 @@ class CommunityAggregator:
             ],
         }
 
-        # Pass 1: discrete-grid Sobol via nearest-neighbour lookup
+        # discrete-grid Sobol via nearest-neighbour lookup
         pen_grid  = np.array(SwarmConfig.EV_PENETRATION_RATES)
         inel_grid = np.array(SwarmConfig.INELASTICITY_RATIOS)
         rho_grid  = np.array(SwarmConfig.MARKOV_PERSISTENCE_LEVELS)
@@ -1723,9 +1711,21 @@ class CommunityAggregator:
             row = cond_df[mask]
             return float(row["SRE_ratio"].iloc[0]) if len(row) else float("nan")
 
+        try:
+            _SOBOL_SEED = SwarmConfig.plugin_sim_seed()
+        except Exception:
+            _SOBOL_SEED = None
+        _SOBOL_SEED = 42 if _SOBOL_SEED is None else int(_SOBOL_SEED)
+
+        def _seeded_sample(prob, n, second):
+            try:
+                return _sobol_sample(prob, n, calc_second_order=second, seed=_SOBOL_SEED)
+            except TypeError:   # deprecated saltelli.sample: no seed keyword
+                return _sobol_sample(prob, n, calc_second_order=second)
+
         N1 = 512
         try:
-            X1 = _sobol_sample(problem, N1, calc_second_order=False)
+            X1 = _seeded_sample(problem, N1, False)
         except Exception as exc:
             self.logger.warning(f"[Sobol] Pass-1 sampling failed: {exc}")
             return
@@ -1738,7 +1738,8 @@ class CommunityAggregator:
         else:
             try:
                 si1 = sobol_analyze.analyze(
-                    problem, Y1, calc_second_order=False, print_to_console=False)
+                    problem, Y1, calc_second_order=False, print_to_console=False,
+                    seed=_SOBOL_SEED)
                 rows1 = [
                     {"factor":  name,
                      "S1":      round(float(si1["S1"][j]),      4),
@@ -1755,7 +1756,7 @@ class CommunityAggregator:
             except Exception as exc:
                 self.logger.warning(f"[Sobol] Pass-1 analyze failed: {exc}")
 
-        # Pass 2: GP-surrogate Sobol
+        # GP-surrogate Sobol
         try:
             from sklearn.gaussian_process import GaussianProcessRegressor
             from sklearn.gaussian_process.kernels import (
@@ -1839,12 +1840,14 @@ class CommunityAggregator:
                 f"[Sobol/Pass-2] CV R² = {r2_mean:.3f} < 0.30 — surrogate is "
                 "untrustworthy.  Reporting indices but flagging as low-confidence.")
 
+        # Saltelli sample on the surrogate (with second-order)
         N2 = 4096
         try:
-            X2 = _sobol_sample(problem, N2, calc_second_order=True)
+            X2 = _seeded_sample(problem, N2, True)
             y_surr = gp.predict(X2)
             si2 = sobol_analyze.analyze(
-                problem, y_surr, calc_second_order=True, print_to_console=False)
+                problem, y_surr, calc_second_order=True, print_to_console=False,
+                seed=_SOBOL_SEED)
         except Exception as exc:
             self.logger.warning(f"[Sobol/Pass-2] Saltelli/analyze failed: {exc}")
             return
@@ -1861,7 +1864,7 @@ class CommunityAggregator:
         pass2_path = self.base_dir / "Sobol_Surrogate_Indices.csv"
         rows2_df.to_csv(pass2_path, index=False)
 
-        # Second-order S2 matrix 
+        # Second-order S2 matrix
         s2_records = []
         names_ = problem["names"]
         for i, ni in enumerate(names_):
@@ -1960,7 +1963,7 @@ class CommunityAggregator:
         tex_path.write_text("\n".join(lines), encoding="utf-8")
         self.logger.info(f"[LaTeX] Table -> {tex_path}")
 
-    #  HTML interactive report 
+    # HTML interactive report
 
     def _export_html_report(self, df: pd.DataFrame) -> None:
         """4-panel Plotly report."""
@@ -2014,7 +2017,7 @@ class CommunityAggregator:
         except Exception as exc:
             self.logger.warning(f"[HTML] Failed: {exc}")
 
-    #  Console highlights
+    # Console highlights 
 
     def _log_highlights(self, df: pd.DataFrame) -> None:
         self.logger.info("=" * 70)
@@ -2125,7 +2128,7 @@ class SensitivitySwarmManager:
 
         c = base_content
 
-        # 1. North Axis - replace numeric field in Building object
+        # 1. North Axis 
         c = re.sub(
             r'(\s+)([\d.]+)(,\s*!-\s*North Axis \{deg\})',
             lambda m: f"{m.group(1)}{arch['north_axis']}.{m.group(3)}",
@@ -2137,13 +2140,13 @@ class SensitivitySwarmManager:
             lambda m: f"{m.group(1)}{arch['pv_frac']}{m.group(3)}",
             c, count=1)
 
-        # 3. Wall insulation - IN02 thickness (3rd field after object name)
+        # 3. Wall insulation 
         c = re.sub(
             r'(IN02,[^\n]*\n\s*\w+,[^\n]*\n\s*)([-+0-9.Ee]+)(,)',
             lambda m: f"{m.group(1)}{arch['in02_thick']:.4f}{m.group(3)}",
             c, count=1)
 
-        # 4. Attic/ceiling insulation --- IN05 thickness (SingleFamilyHouse CEILING:LIVING)
+        # 4. Attic/ceiling insulation 
         c = re.sub(
             r'(IN05,[^\n]*\n\s*\w+,[^\n]*\n\s*)([-+0-9.Ee]+)(,)',
             lambda m: f"{m.group(1)}{arch['in05_thick']:.4f}{m.group(3)}",
@@ -2172,16 +2175,14 @@ class SensitivitySwarmManager:
         return c
 
     def _build_idf(self) -> None:
-        """
-        Compile 5 archetype IDF files from the source template.
-        """
+       
         if not SwarmConfig.SOURCE_IDF.exists():
             raise FileNotFoundError(f"Source IDF missing: {SwarmConfig.SOURCE_IDF}")
 
         base_content = SwarmConfig.SOURCE_IDF.read_text(
             encoding="utf-8", errors="replace")
 
-        # Zone name extraction
+        # Zone name extraction 
         stripped = [re.sub(r"!.*", "", line) for line in base_content.splitlines()]
         tokens   = re.sub(r"\s+", " ", " ".join(stripped))
 
@@ -2196,11 +2197,11 @@ class SensitivitySwarmManager:
         else:
             self.logger.info(f"Detected zones: {self.zones}")
 
-        # Strip duplicate control objects
+        # Strip duplicate control objects 
         stripped_content = re.sub(r"(?is)SimulationControl\s*,[^;]*;", "", base_content)
         stripped_content = re.sub(r"(?is)RunPeriod\s*,[^;]*;", "", stripped_content)
 
-        # Common injected block
+        # Common injected block (identical for all archetypes)
         injected = (
             "\n! --- INJECTED BY Run_Manager.py v9.5 ---\n"
             "SimulationControl, Yes, Yes, No, No, Yes, No, 1;\n"
@@ -2221,12 +2222,13 @@ class SensitivitySwarmManager:
             "! -------------------------------------------\n"
         )
 
-        # Build 5 archetype IDF files
+        # Build 5 archetype IDF files 
         SwarmConfig.ARCHETYPE_IDF_PATHS = []
         for i, arch in enumerate(ARCHETYPES):
             arch_content = self._apply_archetype(stripped_content, arch)
+            # Prepend archetype header comment
             arch_header = (
-                f"!  Archetype {arch['label']} (Run_Manager v6.0 FIX-ARCHETYPE) \n"
+                f"! Archetype {arch['label']} (Run_Manager v6.0 FIX-ARCHETYPE)\n"
                 f"! {arch['description']}\n"
                 f"! N-axis={arch['north_axis']}°  PV={arch['pv_frac']}  "
                 f"IN02={arch['in02_thick']}m  IN05={arch['in05_thick']}m  "
@@ -2248,7 +2250,10 @@ class SensitivitySwarmManager:
             f"FINAL_IDF alias -> A0 ({SwarmConfig.FINAL_IDF.name})")
 
     def execute_swarm(self) -> None:
-
+        """
+        Submits all jobs to ProcessPoolExecutor with 'spawn' context.
+        Streams results to JSONL manifest.  Failed jobs are retried once.
+        """
         total = (len(self.config_files)
                  * len(SwarmConfig.active_scenarios())
                  * len(SwarmConfig.swept_penetration_rates())
@@ -2280,16 +2285,13 @@ class SensitivitySwarmManager:
 
                 if SwarmConfig.BATTERY_PEN_SWEEP:
                     ev_pen, batt_pen = SwarmConfig.BATTERY_PEN_SWEEP_EV_PEN, sweep_pen
-
                     ev_seed_idx = 900
                 else:
                     ev_pen, batt_pen = sweep_pen, 1.0
                     ev_seed_idx = pen_idx
-                # EV assignment (dedicated stream, as before).
                 rng   = random.Random(GLOBAL_RANDOM_SEED + ev_seed_idx)
                 n_evs = int(round(len(self.config_files) * ev_pen))
                 ev_set: Set[Path] = set(rng.sample(self.config_files, n_evs))
-
                 batt_rng  = random.Random(GLOBAL_RANDOM_SEED + 7919 + pen_idx)
                 n_batt    = int(round(len(self.config_files) * batt_pen))
                 batt_set: Set[Path] = set(batt_rng.sample(self.config_files, n_batt))
@@ -2298,7 +2300,6 @@ class SensitivitySwarmManager:
                     for scenario in SwarmConfig.active_scenarios():
                         for cfg in self.config_files:
                             house_id  = cfg.stem.replace("config_", "").lower()
-
                             pen_str   = int(sweep_pen * 100)
                             inel_str  = int(inel_rate * 100)
                             
@@ -2311,7 +2312,6 @@ class SensitivitySwarmManager:
                             fkey = (f"house_{int(m.group(1)) - 1}"
                                     if m else house_id)
                                     
-                            # assign archetype by house index
                             house_num   = int(m.group(1)) if m else 0
                             arch_idx    = house_num % len(ARCHETYPES)
                             arch_idf    = (str(SwarmConfig.ARCHETYPE_IDF_PATHS[arch_idx])
