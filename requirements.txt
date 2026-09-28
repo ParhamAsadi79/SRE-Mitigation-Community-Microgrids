@@ -9,7 +9,8 @@
 #
 # and record the interpreter version on the line below.
 #
-# Interpreter used for the published results: Python 3.11.x   <-- confirm and pin
+# Interpreter: the September 2026 verification reruns used Python 3.13.   <-- confirm the
+# interpreter used for the published results and pin it here
 # EnergyPlus:                                 26.1            <-- external, not pip-installable
 
 # --- core numerics / data -------------------------------------------------------
@@ -20,6 +21,7 @@ scipy>=1.11          # provides the HiGHS dual-revised simplex via scipy.optimiz
 # --- figures --------------------------------------------------------------------
 matplotlib>=3.8
 seaborn>=0.13
+Pillow>=10.0         # TIFF export of the graphical abstract (make_schematic_figures1.py)
 
 # --- sensitivity analysis and clustering ----------------------------------------
 SALib>=1.4           # Saltelli sampling and Sobol first-/total-order estimators
@@ -28,6 +30,7 @@ scikit-learn>=1.3    # Gaussian-process surrogate (Pass-2 Sobol), adjusted Rand 
 # --- optional ------------------------------------------------------------------
 tqdm>=4.66           # progress bars in Run_Manager.py
 plotly>=5.18         # interactive HTML dashboard; omit and pass --skip-html
+pypdf>=4.0           # caption-contract check in make_schematic_figures1.py; skipped if absent
 pulp>=2.7            # only required by the auxiliary benchmark scripts
 requests>=2.31       # only required by Generate_NHTS_Data.py when fetching source data
 
