@@ -1,0 +1,35 @@
+==============================================================================
+EV DEADLINE-MISS AUDIT  (reconstruction of the code's counter; see header)
+MISS = SoC_at_departure < target = 1.0 x 50.0 = 50.00 kWh
+==============================================================================
+
+scanned 10800 telemetry files; 6750 carried an EV.
+total departure events (EV house-days): 2457000
+  MISSES (SoC < target)          :   96421  = 3.924%   <-- reproduces the code's counter
+     of those, ran empty         :    1273  = 0.052%   (throttled below trip need; subset of misses)
+  CAPACITY-INFEASIBLE (separate) :       0  = 0.000%   (departed full yet ran empty; trip > 50 kWh)
+     -> NOT a control failure and NOT counted as a miss: the EV's daily trip physically
+        exceeds its battery, so it runs empty in EVERY scenario incl. S0. This is the
+        source of the earlier 'empty > misses' anomaly, now separated out.
+  lowest SoC-at-departure seen anywhere: 43.13 kWh
+
+by scenario (miss rate = SoC<target; S1 is Algorithm-1):
+  S0:       0/ 409500 =   0.000%  (1125 EV files)  | ran empty:     0 =  0.000%
+  S1:    3600/ 409500 =   0.879%  (1125 EV files)  | ran empty:     0 =  0.000%
+  S2:       0/ 409500 =   0.000%  (1125 EV files)  | ran empty:     0 =  0.000%
+  S3:       0/ 409500 =   0.000%  (1125 EV files)  | ran empty:     0 =  0.000%
+  S4:    4689/ 409500 =   1.145%  (1125 EV files)  | ran empty:     0 =  0.000%
+  S5:   88132/ 409500 =  21.522%  (1125 EV files)  | ran empty:  1273 =  0.311%
+
+by EV penetration (miss rate = SoC<target):
+   25%:    6240/ 235872 =   2.646%
+   50%:   25579/ 491400 =   5.205%
+   75%:   27460/ 746928 =   3.676%
+  100%:   37142/ 982800 =   3.779%
+
+==============================================================================
+MISSES reproduces OccupancyPlugin.py's test (SoC_at_departure < target). 'ran empty' is
+split into throttled (a subset of misses) and capacity-infeasible (disjoint: trip > battery,
+a data/modelling issue -- NOTE at least one NHTS house has a daily trip above the EV capacity).
+If MISSES disagrees with the paper's figure, the paper likely cites a different quantity
+(e.g. an override rate). This is a reconstruction from telemetry, not the in-code counter.
