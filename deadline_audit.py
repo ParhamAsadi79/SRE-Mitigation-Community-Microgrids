@@ -1,39 +1,3 @@
-#!/usr/bin/env python3
-"""
-deadline_audit.py
-=============================================================================
-Reconstruct the EV deadline-miss rate across ALL houses, scenarios, and
-conditions, from the per-house telemetry (ev_soc_kwh).
-
-MISS DEFINITION (matches OccupancyPlugin.py lines ~2126-2128)
-    target_kwh = EV_DEADLINE_TARGET_FRAC * ev_capacity_kwh
-    miss  <=>  SoC_at_departure < target_kwh - 1e-6
-With the code default EV_DEADLINE_TARGET_FRAC = 1.0 and capacity 50 kWh, this
-means: a departure is a MISS if the EV was NOT at a full 100% charge (< 50 kWh)
-when it left. NOTE this is a strict "expected full at departure" criterion, not
-"ran empty". Pass --target-frac / --capacity to match your code exactly.
-
-Also reported (diagnostic only): "depleted" = post-departure SoC ~ 0, i.e. the
-EV actually ran to empty -- a strict operational failure, a subset of misses.
-
-DETECTION: the EV's SoC only steps down at the morning departure (trip energy
-deducted), so a DEPARTURE is a downward SoC step in the morning window; the
-SoC just before the step is SoC_at_departure.
-
-CAVEATS (per honesty requirements)
-  * The miss VALUE depends on --capacity matching your code's ev_capacity_kwh.
-    The script warns if any house's peak SoC exceeds the assumed capacity
-    (which would mean the capacity is wrong). Confirm it against the code.
-  * This reads telemetry only; it is a RECONSTRUCTION of the code's counter,
-    not the counter itself. It does not validate the EV physics.
-  * Verify detection with --debug on a real EV house before trusting the rate.
-
-Usage
-  python deadline_audit.py --results DIR [--capacity 50.0] [--target-frac 1.0]
-                           [--debug house_03]
-=============================================================================
-"""
-
 import argparse
 import glob
 import os
@@ -43,19 +7,14 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 
-MIN_DROP_KWH   = 0.5    # a downward SoC step this large registers a departure
-SOC_FLOOR_KWH  = 0.10   # post-departure SoC <= this counts as "depleted" (ran empty)
+MIN_DROP_KWH   = 0.5    
+SOC_FLOOR_KWH  = 0.10   
 DEFAULT_CAPACITY_KWH = 50.0
 DEFAULT_TARGET_FRAC  = 1.0
 
 
 def detect_departures(soc, hour=None, dep_window=(5, 12)):
-    """
-    Return [(idx, pre, post, drop), ...] for downward SoC steps.
-    If `hour` is given, only steps whose hour is in dep_window (the morning
-    departure window) count -- excludes spurious drops (evening arrival-SoC
-    reset, day-boundary discontinuity) that are not trips.
-    """
+    
     soc = np.asarray(soc, dtype=float)
     if len(soc) < 2:
         return []
@@ -70,7 +29,7 @@ def detect_departures(soc, hour=None, dep_window=(5, 12)):
 
 
 def audit_house(path, target_kwh, soc_floor):
-    """Per-house stats, or None if no EV in this file."""
+    
     try:
         df = pd.read_csv(path, usecols=lambda c: c in ("ev_soc_kwh", "hour"))
     except Exception:
@@ -93,15 +52,15 @@ def audit_house(path, target_kwh, soc_floor):
     soc_at_dep = []
     for _, pre, post, drop in deps:
         soc_at_dep.append(pre)
-        is_miss = pre < target_kwh - 1e-6         # code's test: SoC_at_departure < target
-        is_empty = post <= soc_floor              # ran to empty after the trip
+        is_miss = pre < target_kwh - 1e-6        
+        is_empty = post <= soc_floor              
         if is_miss:
             below_target += 1
         if is_empty:
             if is_miss:
-                empty_throttled += 1              # below target AND empty -> subset of misses
+                empty_throttled += 1              
             else:
-                empty_infeasible += 1             # (near) full yet empty -> trip exceeds capacity
+                empty_infeasible += 1             
     return dict(has_ev=True, departures=len(deps), below_target=below_target,
                 empty_throttled=empty_throttled, empty_infeasible=empty_infeasible,
                 min_soc_at_dep=float(np.min(soc_at_dep)), peak_soc=peak_soc)
@@ -218,7 +177,7 @@ def main():
     for s in sorted(by_scen):
         b = by_scen[s]; d = b["departures"] or 1
         print(f"  S{s}: {b['below_target']:7d}/{b['departures']:7d} = {b['below_target']/d*100:7.3f}%  "
-              f"({b['ev_files']} EV files)")
+              f"({b['ev_files']} EV files)  | ran empty: {b['empty_throttled']:5d} = {b['empty_throttled']/d*100:6.3f}%")
 
     print("\nby EV penetration (miss rate = SoC<target):")
     for p in sorted(by_pen):
