@@ -16,7 +16,7 @@ import pandas as pd
 import scipy.stats as stats
 
 import matplotlib
-matplotlib.use("Agg")          # no display required
+matplotlib.use("Agg")         
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import matplotlib.patches as mpatches
@@ -24,7 +24,6 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import seaborn as sns
 
-# Interactive HTML reporting
 try:
     import plotly.graph_objects as go
     import plotly.io as pio
@@ -32,10 +31,11 @@ try:
     PLOTLY_OK = True
 except ImportError:
     PLOTLY_OK = False
-    warnings.warn("plotly not installed - interactive HTML report will be skipped.")
+    warnings.warn("plotly not installed — interactive HTML report will be skipped.")
 
-# IEEE PUBLICATION STYLE
+
 IEEE_STYLE: Dict[str, object] = {
+
     "font.family":         ["serif"],
     "font.serif":          ["Times New Roman", "Nimbus Roman",
                             "Liberation Serif", "DejaVu Serif"],
@@ -59,7 +59,7 @@ IEEE_STYLE: Dict[str, object] = {
     "savefig.pad_inches":   0.05,
     "savefig.dpi":          300,
     "figure.dpi":           120,
-    "pdf.fonttype":         42,        # embed TrueType 
+    "pdf.fonttype":         42,       
     "ps.fonttype":          42,
     "axes.grid":            True,
     "grid.alpha":           0.25,
@@ -67,7 +67,7 @@ IEEE_STYLE: Dict[str, object] = {
     "grid.linewidth":       0.5,
 }
 
-# Wong 2011 colorblind-safe palette (Nature Methods, 2011, "Points of view: Color blindness")
+# Wong 2011 colorblind-safe palette
 COLORS_WONG: Dict[str, str] = {
     "black":      "#000000",
     "orange":     "#E69F00",
@@ -82,14 +82,23 @@ COLORS_WONG: Dict[str, str] = {
 # Per-scenario colour mapping 
 SCENARIO_COLORS: Dict[int, str] = {
     0: COLORS_WONG["black"],       # Baseline (no DR)
-    1: COLORS_WONG["green"],       # Algorithm 1 - the mitigation hero
-    2: COLORS_WONG["vermillion"],  # TOU rebound - the worst case
+    1: COLORS_WONG["green"],       # vdC-Stagger — the mitigation hero
+    2: COLORS_WONG["vermillion"],  # TOU rebound — the worst case
     3: COLORS_WONG["skyblue"],     # Flat-tariff baseline
     4: COLORS_WONG["purple"],      # Valley-fill
 }
+
+SCENARIO_MARKERS: Dict[int, str] = {
+    0: "o",   # Baseline (no DR)
+    1: "s",   # vdC-Stagger
+    2: "D",   # TOU rebound
+    3: "^",   # Flat tariff
+    4: "v",   # Valley-fill
+}
+
 SCENARIO_NAMES: Dict[int, str] = {
     0: "S0: Random Arrival (No DR)",
-    1: "S1: Algorithm 1 (Mitigation)",
+    1: "S1: vdC-Stagger (Mitigation)",
     2: "S2: TOU Rebound",
     3: "S3: Flat Tariff",
     4: "S4: Valley-Fill",
@@ -102,11 +111,9 @@ SCENARIO_NAMES_SHORT: Dict[int, str] = {
     4: "S4",
 }
 
-# Penetration to marker / hatch (for consistency across grouped figures)
 PEN_MARKERS: Dict[float, str] = {0.25: "o", 0.50: "s", 0.75: "D", 1.00: "^"}
 PEN_LABELS:  Dict[float, str] = {0.25: "25%", 0.50: "50%", 0.75: "75%", 1.00: "100%"}
 
-# Single-column / double-column widths (inches)
 WIDTH_SINGLE = 3.5
 WIDTH_DOUBLE = 7.16
 
@@ -131,10 +138,10 @@ logging.getLogger("PIL").setLevel(logging.WARNING)
 # DATA LAYER
 @dataclass
 class AnalysisData:
-    """Container holding the loaded SRE_metrics_summary.csv and derived views."""
+
     df:           pd.DataFrame                # full 180-row table (all 5 scenarios)
     df_s0:        pd.DataFrame                # scenario 0 (no DR baseline)
-    df_s1:        pd.DataFrame                # scenario 1 (Algorithm 1)
+    df_s1:        pd.DataFrame                # scenario 1 (vdC-Stagger)
     df_s2:        pd.DataFrame                # scenario 2 (TOU rebound)
     df_s3:        pd.DataFrame                # scenario 3 (inelastic-only)
     df_s4:        pd.DataFrame                # scenario 4 (valley-fill)
@@ -172,6 +179,7 @@ def load_data(results_dir: Path) -> AnalysisData:
                     f"the published analysis covers S0-S4.")
         df = df[df["scenario"].isin(_KNOWN_SCENARIOS)].copy()
 
+    # Sobol optional files
     sobol_p1 = _read_optional_csv(results_dir / "Sobol_Sensitivity_Indices.csv")
     sobol_p2 = _read_optional_csv(results_dir / "Sobol_Surrogate_Indices.csv")
     sobol_s2 = _read_optional_csv(results_dir / "Sobol_Surrogate_S2_Interactions.csv")
@@ -283,25 +291,18 @@ def bca_ci(
 
 
 def cliff_delta(x: np.ndarray, y: np.ndarray) -> float:
-    """
-    Cliff's delta non-parametric effect size on [-1, +1].
-      |δ| < 0.147 - negligible
-      |δ| < 0.33  - small
-      |δ| < 0.474 - medium
-      otherwise   - large
-    """
+ 
     x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
     x = x[~np.isnan(x)]
     y = y[~np.isnan(y)]
     if x.size == 0 or y.size == 0:
         return float("nan")
-
     diff = x[:, None] - y[None, :]
     return float(np.sign(diff).mean())
 
 
 def cliff_delta_label(d: float) -> str:
-    """Map Cliff's delta magnitude to a qualitative label."""
+
     if np.isnan(d):
         return "n/a"
     a = abs(d)
@@ -354,7 +355,7 @@ def fmt_p(p: float) -> str:
 
 
 def fmt_value_ci(point: float, lo: float, hi: float, decimals: int = 3) -> str:
-    """Format point [lo, hi] for tables/captions."""
+  
     if np.isnan(point):
         return "n/a"
     fmt = f"{{:.{decimals}f}}"
@@ -364,17 +365,16 @@ def fmt_value_ci(point: float, lo: float, hi: float, decimals: int = 3) -> str:
 # FIGURE GENERATION HELPERS
 
 def setup_style() -> None:
-    """Apply IEEE TSG matplotlib style globally."""
+    """Apply the Elsevier Applied Energy matplotlib style globally."""
     plt.rcParams.update(IEEE_STYLE)
     sns.set_style("ticks", rc={"axes.spines.top": False, "axes.spines.right": False})
-
 
 
 DRAW_ON_ARTWORK_TITLES: bool = False
 
 
 def figure_title(fig: plt.Figure, text: str, **kw) -> None:
-    """Draw an on-artwork figure title only in draft mode; no-op for submission."""
+   
     if DRAW_ON_ARTWORK_TITLES:
         fig.suptitle(text, **kw)
 
@@ -392,7 +392,7 @@ PROVENANCE_OWNER = "IEEE_Sensitivity_Analysis.py"
 
 
 def _claim_output(out_dir: Path, base_name: str) -> None:
-    """Refuse to overwrite a figure owned by a different generator."""
+  
     side = Path(out_dir) / f"{base_name}.provenance.json"
     if side.exists():
         try:
@@ -419,7 +419,7 @@ def save_figure(
     *,
     formats: Tuple[str, ...] = ("png", "pdf", "svg"),
 ) -> List[Path]:
-    """Save figure in multiple formats (PNG@300 for review, PDF/SVG for LaTeX)."""
+    """Save figure in multiple formats"""
     out_dir.mkdir(parents=True, exist_ok=True)
     _claim_output(out_dir, name)
     paths: List[Path] = []
@@ -433,7 +433,7 @@ def save_figure(
 
 
 def add_panel_label(ax: plt.Axes, label: str, *, x: float = -0.18, y: float = 1.05) -> None:
-    """Add an IEEE-style lowercase panel label like '(a)' to an Axes."""
+
     ax.text(
         x, y, label,
         transform=ax.transAxes,
@@ -442,13 +442,7 @@ def add_panel_label(ax: plt.Axes, label: str, *, x: float = -0.18, y: float = 1.
     )
 
 
-# FIGURE 1 - HEADLINE MITIGATION RESULT
-#   "Algorithm 1 mitigates the SRE rebound across the entire 36-condition
-#    experimental design.  Mitigation strengthens monotonically with EV
-#    penetration."
-# Two-panel layout:
-#   (a) Violin + per-condition strip of MIT_ratio vs penetration
-#   (b) MIT_ratio vs penetration with bootstrap 95% CIs for the conditional mean
+# FIGURE 1 — HEADLINE MITIGATION RESULT
 def fig01_mitigation_headline(data: AnalysisData, out_dir: Path) -> None:
     setup_style()
     df = data.df_s1.copy()  # MIT_ratio is a condition-level metric, same across S
@@ -480,7 +474,7 @@ def fig01_mitigation_headline(data: AnalysisData, out_dir: Path) -> None:
         ax_a.scatter(x, y, s=12, c=COLORS_WONG["green"], alpha=0.85,
                      edgecolors="white", linewidths=0.4, zorder=3)
 
-    # MIT = 1 reference line (above which there is NO mitigation)
+    # MIT = 1 reference line 
     ax_a.axhline(1.0, color=COLORS_WONG["vermillion"], lw=1.2, ls="--", zorder=2)
     ax_a.text(len(pens) - 0.15, 1.005, "no mitigation",
               fontsize=7, ha="right", va="bottom",
@@ -494,8 +488,6 @@ def fig01_mitigation_headline(data: AnalysisData, out_dir: Path) -> None:
     add_panel_label(ax_a, "(a)")
 
     # Panel (b): conditional mean + bootstrap 95% CI
-    # Use a single RNG so the four per-penetration bootstrap calls draw
-    # independent resampling sequences instead of identical ones.
     rng_b = np.random.default_rng(seed=42)
     means_lo, means, means_hi = [], [], []
     for p in pens:
@@ -510,7 +502,7 @@ def fig01_mitigation_headline(data: AnalysisData, out_dir: Path) -> None:
 
     ax_b.errorbar(
         pens, means, yerr=err,
-        fmt="o-", color=COLORS_WONG["green"],
+        fmt="o", color=COLORS_WONG["green"],
         ecolor=COLORS_WONG["green"], elinewidth=1.0, capsize=3.5,
         markersize=6, markerfacecolor="white", markeredgewidth=1.4,
         label=r"$\mathrm{mean}\,MIT \pm 95\%\,\mathrm{CI}$",
@@ -527,7 +519,6 @@ def fig01_mitigation_headline(data: AnalysisData, out_dir: Path) -> None:
 
     n_total = int(df["MIT_ratio"].notna().sum())
     n_below_1 = int((df["MIT_ratio"] < 1.0).sum())
- 
     pen_means = (df.groupby("pen_rate")["MIT_ratio"].mean()
                  .reindex(sorted(df["pen_rate"].unique())))
     sharpest_pen = float(pen_means.idxmin())
@@ -546,14 +537,11 @@ def fig01_mitigation_headline(data: AnalysisData, out_dir: Path) -> None:
     save_figure(fig, out_dir, "F01_mitigation_headline")
 
 
-# FIGURE 2 - CF HEATMAP (THE "MITIGATION MAP")
-# A 5*4 heatmap shows CF for each (scenario * penetration) pair.
-# This is the figure they scan first to see whether the mitigation
-# claim has a clean experimental signature.
+# FIGURE 2 — CF HEATMAP
 def fig02_cf_heatmap(data: AnalysisData, out_dir: Path) -> None:
     setup_style()
 
-    # Average CF over (inel * rho) within each (scenario, pen)
+    # Average CF over (inel × rho) within each (scenario, pen)
     pivot = (data.df
              .groupby(["scenario", "pen_rate"])["CF"]
              .mean()
@@ -576,7 +564,6 @@ def fig02_cf_heatmap(data: AnalysisData, out_dir: Path) -> None:
     ax.set_xlim(-0.5, nx - 0.5)
     ax.set_ylim(ny - 0.5, -0.5)   # keep S0 at the top, matching imshow
 
-    # Annotate each cell with its CF value
     for i, scen in enumerate(pivot.index):
         for j, pen in enumerate(pivot.columns):
             v = pivot.iloc[i, j]
@@ -597,7 +584,7 @@ def fig02_cf_heatmap(data: AnalysisData, out_dir: Path) -> None:
     cbar.set_label("Coincidence Factor (CF)", rotation=270, labelpad=12)
     cbar.ax.tick_params(labelsize=7)
 
-    ax.grid(False)  # heatmap doesn't need grid
+    ax.grid(False)  
 
     figure_title(fig, 
         "CF averaged over inelasticity and Markov persistence",
@@ -606,16 +593,11 @@ def fig02_cf_heatmap(data: AnalysisData, out_dir: Path) -> None:
     save_figure(fig, out_dir, "F02_cf_heatmap")
 
 
-# FIGURE 3 - SOBOL FACTOR DECOMPOSITION
-# which experimental factor (penetration, inelasticity, persistence)
-# explains the variance of SRE_ratio?  Compare Pass-1 (real data) and Pass-2
-# (GP surrogate) side by side.
-# If neither Sobol CSV is present, fall back to a discrete-grid Sobol on
-# SRE_ratio computed directly from the loaded data.
+# FIGURE 3 — SOBOL FACTOR DECOMPOSITION
 def fig03_sobol_indices(data: AnalysisData, out_dir: Path) -> None:
     setup_style()
 
-    # Load Sobol indices (with fallback)
+    # Load Sobol indices
     p1 = data.sobol_p1
     p2 = data.sobol_p2
 
@@ -643,7 +625,7 @@ def fig03_sobol_indices(data: AnalysisData, out_dir: Path) -> None:
                     edgecolor="white", linewidth=0.5,
                     label=r"$S_1$ (Pass-1, real data)")
 
-    # Only plot ST bars if values are finite (fallback decomposition skips ST)
+    # Only plot ST bars if values are finite
     if np.all(np.isfinite(st_p1)):
         bars_b = ax.bar(x - 0.5*width, st_p1, width, yerr=stc_p1, capsize=2.5,
                         color=COLORS_WONG["skyblue"], alpha=0.85,
@@ -688,13 +670,13 @@ def _fallback_factor_decomposition(
     data: AnalysisData,
     target: str = "SRE_ratio",
 ) -> pd.DataFrame:
-    
+
     df = (data.df
           .drop_duplicates(subset=["pen_rate", "inel_rate", "markov_rho"])
           .copy())
     df = df[["pen_rate", "inel_rate", "markov_rho", target]].dropna()
     factors = ["pen_rate", "inel_rate", "markov_rho"]
-    var_total = float(df[target].var(ddof=0))   # population variance (ddof=0); numerator below uses the same convention so the ratio is consistent
+    var_total = float(df[target].var(ddof=0))   # population variance (ddof=0)
     rows = []
     for f in factors:
         # First-order S1 = Var[E[Y|X_f]] / Var[Y]
@@ -705,25 +687,23 @@ def _fallback_factor_decomposition(
         mean_total = float(df[target].mean())
         var_first = float(np.sum(weights * (gm.values - mean_total) ** 2))
         s1 = var_first / max(var_total, 1e-12)
-        # Clip to [0, 1] for safety — any small overshoot is finite-sample noise
+        # Clip to [0, 1] for safety 
         s1 = float(np.clip(s1, 0.0, 1.0))
         rows.append({
             "factor":  f,
             "S1":      s1,
-            "ST":      np.nan,   
+            "ST":      np.nan,    # blank 
             "S1_conf": 0.0,
             "ST_conf": 0.0,
         })
     return pd.DataFrame(rows)
 
 
-# FIGURE 4 - BILL DECOMPOSITION
-# a stacked-bar breakdown of who pays what in each scenario.
-# PV credit appears as a NEGATIVE bar (revenue, not expense).
+# FIGURE 4 — BILL DECOMPOSITION
 def fig04_bill_decomposition(data: AnalysisData, out_dir: Path) -> None:
     setup_style()
 
-    # Average bill components per (scenario, pen_rate); inel and rho averaged
+    # Average bill components per (scenario, pen_rate)
     df = (data.df.groupby(["scenario", "pen_rate"])[
               ["E_baseline_cost_usd", "E_ev_cost_usd",
                "E_batt_cost_usd", "E_pv_credit_usd",
@@ -751,7 +731,6 @@ def fig04_bill_decomposition(data: AnalysisData, out_dir: Path) -> None:
     pens = sorted(df["pen_rate"].unique())
     scenarios = sorted(df["scenario"].unique())
 
-    # Compute a global y-range so that all five panels share the same scale.
     pos_components = [c for c in ["E_baseline_cost_usd", "E_ev_cost_usd",
                                   "E_batt_cost_usd", "demand_charge_usd"]
                       if df[c].abs().max() > 1e-9]
@@ -811,18 +790,17 @@ def fig04_bill_decomposition(data: AnalysisData, out_dir: Path) -> None:
         if ax_i == 0:
             ax.set_ylabel("Annual bill component (USD)")
         else:
-            # Hide y-tick labels on inner panels but keep the gridlines -
-            # the shared scale is the point of the figure.
+
             plt.setp(ax.get_yticklabels(), visible=False)
         ax.tick_params(axis="x", labelsize=7)
         ax.tick_params(axis="y", labelsize=7)
 
-        # Tight kUSD axis formatting (applied to all, only visible on leftmost)
+        # Tight kUSD axis formatting 
         ax.yaxis.set_major_formatter(
             mticker.FuncFormatter(lambda v, _: f"{v/1000:.0f}k" if abs(v) >= 1000 else f"{v:.0f}")
         )
 
-    # Legend below the figure (saves space)
+    # Legend below the figure 
     fig.legend(
         handles_for_legend, labels_for_legend,
         loc="lower center", ncol=3, fontsize=7.0, frameon=False,
@@ -834,9 +812,7 @@ def fig04_bill_decomposition(data: AnalysisData, out_dir: Path) -> None:
     save_figure(fig, out_dir, "F04_bill_decomposition")
 
 
-# FIGURE 5 - PEAK-COMPONENT ATTRIBUTION
-# at the community peak timestep t*, who is responsible for the load?
-# This is the plot for the SRE narrative.
+# FIGURE 5 — PEAK-COMPONENT ATTRIBUTION
 def fig05_peak_attribution(data: AnalysisData, out_dir: Path) -> None:
     setup_style()
 
@@ -856,7 +832,7 @@ def fig05_peak_attribution(data: AnalysisData, out_dir: Path) -> None:
         "P_peak_building_kw":  COLORS_WONG["skyblue"],
         "P_peak_ev_kw":        COLORS_WONG["orange"],
         "P_peak_batt_kw":      COLORS_WONG["yellow"],
-        "P_peak_pv_kw":        COLORS_WONG["green"],   # PV displaces (negative)
+        "P_peak_pv_kw":        COLORS_WONG["green"],   # PV displaces 
     }
     component_labels = {
         "P_peak_building_kw":  "Building (HVAC + lights + equip)",
@@ -864,7 +840,6 @@ def fig05_peak_attribution(data: AnalysisData, out_dir: Path) -> None:
         "P_peak_batt_kw":      "Battery (charging)",
         "P_peak_pv_kw":        "PV (offset, negative)",
     }
-
 
     pos_components = [c for c in ["P_peak_building_kw", "P_peak_ev_kw",
                                   "P_peak_batt_kw"]
@@ -901,7 +876,7 @@ def fig05_peak_attribution(data: AnalysisData, out_dir: Path) -> None:
                 handles_for_legend.append(b)
                 labels_for_legend.append(component_labels[comp])
 
-        # PV displaces - show as negative
+        # PV displaces 
         pv_neg = -sub["P_peak_pv_kw"].values
         b_pv = ax.bar(x, pv_neg, width,
                       color=component_colors["P_peak_pv_kw"],
@@ -940,9 +915,7 @@ def fig05_peak_attribution(data: AnalysisData, out_dir: Path) -> None:
     save_figure(fig, out_dir, "F05_peak_attribution")
 
 
-# FIGURE 6 - PARETO FRONT: CF vs ANNUAL BILL
-# a 2-D scatter of all 180 conditions, x = total_bill, y = CF,
-# coloured by scenario, sized by penetration.
+# FIGURE 6 — PARETO FRONT: CF vs ANNUAL BILL
 def fig06_pareto_cf_bill(data: AnalysisData, out_dir: Path) -> None:
     setup_style()
 
@@ -991,9 +964,7 @@ def fig06_pareto_cf_bill(data: AnalysisData, out_dir: Path) -> None:
     save_figure(fig, out_dir, "F06_pareto_cf_bill")
 
 
-# FIGURE 7 - LP-OPF OPTIMALITY GAP
-#  how close is each scenario to the centralised perfect-information
-# LP-OPF lower bound on the demand charge?
+# FIGURE 7 — LP-OPF OPTIMALITY GAP
 def fig07_commfree_optimality_gap(data: AnalysisData, out_dir: Path) -> None:
     setup_style()
 
@@ -1015,7 +986,8 @@ def fig07_commfree_optimality_gap(data: AnalysisData, out_dir: Path) -> None:
     for scen in scenarios:
         sub = df_ok[df_ok["scenario"] == scen]
         means = [sub[sub["pen_rate"] == p][col].mean() for p in pens]
-        ax_a.plot(pens, means, "-o", color=SCENARIO_COLORS[scen], ms=5, lw=1.5,
+        ax_a.plot(pens, means, marker=SCENARIO_MARKERS[scen], ls="none",
+                  color=SCENARIO_COLORS[scen], ms=5,
                   mfc="white", mec=SCENARIO_COLORS[scen], mew=1.3,
                   label=SCENARIO_NAMES_SHORT[scen])
     ax_a.set_xlabel("EV penetration")
@@ -1024,7 +996,7 @@ def fig07_commfree_optimality_gap(data: AnalysisData, out_dir: Path) -> None:
     ax_a.legend(loc="best", fontsize=7.0, ncol=2, framealpha=0.9)
     add_panel_label(ax_a, "(a)")
 
-    # Panel (b): gap distribution by scenario (boxplot, linear axis)
+    # Panel (b): gap distribution by scenario
     box_data = [df_ok[df_ok["scenario"] == s][col].dropna().values for s in scenarios]
     bp = ax_b.boxplot(
         box_data,
@@ -1061,12 +1033,9 @@ def fig07_commfree_optimality_gap(data: AnalysisData, out_dir: Path) -> None:
     save_figure(fig, out_dir, "F07_commfree_optimality_gap")
 
 
-# FIGURE 8 - JAIN FAIRNESS INDEX
-# distributed schemes can be inequitable.  Jain's fairness index
-# bounds the cost equity across the 50 households.
+# FIGURE 8 — JAIN FAIRNESS INDEX
 def log_lp_opf_ratios(data: AnalysisData) -> None:
-    """Log the per-scenario LP-OPF gaps quoted in Section 5.2 so they are
-    auditable from the run log rather than hand-copied. No figure is emitted."""
+
     df = data.df
     if "optimality_gap_pct" not in df.columns:
         return
@@ -1091,8 +1060,6 @@ def fig08_jain_fairness(data: AnalysisData, out_dir: Path) -> None:
 
     pens = sorted(data.df["pen_rate"].unique())
 
-    # Single shared RNG advances across the 5 x 4 = 20 bootstrap calls so each
-    # call draws an independent resample sequence.
     rng_j = np.random.default_rng(seed=42)
     for scen in sorted(data.df["scenario"].unique()):
         means, los, his = [], [], []
@@ -1103,23 +1070,20 @@ def fig08_jain_fairness(data: AnalysisData, out_dir: Path) -> None:
             means.append(m); los.append(lo); his.append(hi)
         means = np.array(means)
         err = np.vstack([means - np.array(los), np.array(his) - means])
-        # The identical series is drawn on both axes; each axis clips to its
-        # own y-band, so a curve appears only where its data actually lie.
+
         for ax in (ax_hi, ax_lo):
             ax.errorbar(
                 pens, means, yerr=err,
-                fmt="-o", color=SCENARIO_COLORS[scen],
+                fmt=SCENARIO_MARKERS[scen], ls="none",
+                color=SCENARIO_COLORS[scen],
                 ecolor=SCENARIO_COLORS[scen], elinewidth=0.8, capsize=3,
                 markersize=5, markerfacecolor="white", markeredgewidth=1.2,
                 label=SCENARIO_NAMES_SHORT[scen],
                 alpha=0.95,
             )
 
-    # Band limits: upper frames the storage cluster and the J=1 asymptote,
-    # lower frames the baselines down to their minimum.
     ax_hi.set_ylim(0.79, 1.06)
     ax_lo.set_ylim(0.16, 0.63)
-
 
     ax_hi.axhline(1.0, color="green", lw=0.8, ls=":", alpha=0.7)
     ax_hi.text(pens[-1] * 1.01, 1.003, "perfect equity", fontsize=7,
@@ -1138,21 +1102,19 @@ def fig08_jain_fairness(data: AnalysisData, out_dir: Path) -> None:
     ax_lo.plot((-d, +d), (1 - dl, 1 + dl), **kw)
     ax_lo.plot((1 - d, 1 + d), (1 - dl, 1 + dl), **kw)
 
-    # Shared x-axis and a single centered y-label spanning both bands.
     ax_lo.set_xticks(pens)
     ax_lo.set_xticklabels([PEN_LABELS[p] for p in pens])
     ax_lo.set_xlabel("EV penetration")
     fig.supylabel("Jain's Fairness Index (J)", fontsize=9)
 
-    ax_hi.legend(loc="lower right", ncol=3, framealpha=0.92, fontsize=7.0,
+    ax_lo.legend(loc="lower right", ncol=3, framealpha=0.92, fontsize=7.0,
                  title="Scenario", title_fontsize=7.5)
     axes_title(ax_hi, "Bill equity", fontsize=9.5)
 
     save_figure(fig, out_dir, "F08_jain_fairness")
 
 
-# FIGURE 9 - CARBON FOOTPRINT
-# did Algorithm 1's carbon-arbiter actually reduce emissions vs the baseline?
+# FIGURE 9 — CARBON FOOTPRINT
 def fig09_carbon_emissions(data: AnalysisData, out_dir: Path) -> None:
     setup_style()
     fig, ax = plt.subplots(figsize=(WIDTH_DOUBLE * 0.72, 3.0))
@@ -1183,7 +1145,8 @@ def fig09_carbon_emissions(data: AnalysisData, out_dir: Path) -> None:
                          np.array(carbon_hi) - means])
         ax.errorbar(
             pens, means, yerr=err,
-            fmt="-o", color=SCENARIO_COLORS[scen],
+            fmt=SCENARIO_MARKERS[scen], ls="none",
+            color=SCENARIO_COLORS[scen],
             ecolor=SCENARIO_COLORS[scen], elinewidth=0.8, capsize=3,
             markersize=5, markerfacecolor="white", markeredgewidth=1.2,
             label=SCENARIO_NAMES_SHORT[scen],
@@ -1202,10 +1165,7 @@ def fig09_carbon_emissions(data: AnalysisData, out_dir: Path) -> None:
     save_figure(fig, out_dir, "F09_carbon_emissions")
 
 
-# FIGURE 10 - METRIC DISTRIBUTIONS (KDE / VIOLIN GRID)
-# a multi-panel fingerprint of all key metrics, showing distribution
-# shape across all 36 conditions for each scenario.  Useful for the final
-# results page of the paper - gives a holistic view at a glance.
+# FIGURE 10 — METRIC DISTRIBUTIONS
 def fig10_metric_distributions(data: AnalysisData, out_dir: Path) -> None:
     setup_style()
 
@@ -1283,14 +1243,12 @@ def fig10_metric_distributions(data: AnalysisData, out_dir: Path) -> None:
 
 
 # TABLE GENERATION
-
 def _latex_escape(s: str) -> str:
 
     if not isinstance(s, str):
         return s
     if "$" in s or "\\" in s:
         return s            # already LaTeX
-    # Order matters: escape backslash first (already excluded above)
     out = (s.replace("&",  r"\&")
             .replace("%",  r"\%")
             .replace("#",  r"\#")
@@ -1313,7 +1271,7 @@ def _to_latex_booktabs(
     r"""
     Render a DataFrame as IEEE-style LaTeX (booktabs).  Avoids pandas's
     `to_latex` for fine-grained control over rules, column types, and
-    captions.  Output is ready for direct \input{} into an IEEE template.
+    captions.  Output is ready for direct \input{} into the Elsevier template.
 
     Plain-text cells are escaped for LaTeX-special characters (%, &, _,
     #, ^, ~).  Cells that already contain math ($...$) or commands (\\)
@@ -1332,7 +1290,6 @@ def _to_latex_booktabs(
     env = "table*" if wide else "table"
     lines = []
     lines.append(rf"\begin{{{env}}}[!t]")
-    # \arraystretch{1.2} keeps booktabs rows legible at journal size
     lines.append(r"\renewcommand{\arraystretch}{1.2}")
     lines.append(rf"\caption{{{caption}}}")
     lines.append(rf"\label{{{label}}}")
@@ -1340,7 +1297,6 @@ def _to_latex_booktabs(
     lines.append(rf"\begin{{tabular}}{{{column_format}}}")
     lines.append(r"\toprule")
 
-    # Header row — escape headers as well
     headers = []
     if df.index.name:
         headers.append(_latex_escape(str(df.index.name)))
@@ -1348,7 +1304,6 @@ def _to_latex_booktabs(
     lines.append(" & ".join(headers) + r" \\")
     lines.append(r"\midrule")
 
-    # Data rows
     for idx, row in df.iterrows():
         cells = []
         if df.index.name:
@@ -1401,11 +1356,7 @@ def _save_table(
 
 # TABLE 1: Master summary by penetration
 def tbl01_master_summary(data: AnalysisData, out_dir: Path) -> None:
-    """
-    Master table with one row per (penetration, scenario) summarising
-    CF, total bill, demand charge, and Jain fairness.
-    MIT is a condition-level quantity (CF(S1)/CF(S2) per condition
-    """
+
     rows = []
     pens = sorted(data.df["pen_rate"].unique())
     scenarios = sorted(data.df["scenario"].unique())
@@ -1414,7 +1365,7 @@ def tbl01_master_summary(data: AnalysisData, out_dir: Path) -> None:
     mit_by_pen = (data.df_s1.groupby("pen_rate")["MIT_ratio"]
                   .mean().reindex(pens))
 
-    # Single shared RNG across the 5 * 4 = 20 bootstrap CIs.
+    # Single shared RNG across the 5 × 4 = 20 bootstrap CIs.
     rng_t = np.random.default_rng(seed=42)
     for pen in pens:
         for scen in scenarios:
@@ -1454,9 +1405,6 @@ def tbl01_master_summary(data: AnalysisData, out_dir: Path) -> None:
         column_format="ll" + "c" * (len(df_tbl.columns) - 1),  # Pen+Scen left, 4 data cols centered
         float_format="%.3f",
         note=note,
-        # 20 data rows * 6 columns - too wide and long for IEEE single-column.
-        # Emit as table* so the floating table spans the full page width and
-        # does not collide with the surrounding two-column prose.
         wide=True,
     )
 
@@ -1510,7 +1458,6 @@ def tbl02_sobol_indices(data: AnalysisData, out_dir: Path) -> None:
 
     df_tbl = pd.DataFrame(rows).set_index("Factor")
 
-    # two entries read as sloppiness unless named as estimator artefacts.
     note = ("$S_1$ = first-order, $S_T$ = total-order Sobol index. "
             "Pass-1 uses real simulation outputs (36 cells); Pass-2 fits "
             "a Gaussian Process surrogate before Saltelli sampling. "
@@ -1521,7 +1468,7 @@ def tbl02_sobol_indices(data: AnalysisData, out_dir: Path) -> None:
 
     _save_table(
         df_tbl, out_dir, "T02_sobol_indices",
-        caption=r"Sobol sensitivity decomposition of $\mathit{SRE}$.",
+        caption=r"Sobol sensitivity decomposition of $\mathit{SRE}$; $\pm$ values are 95\% bootstrap confidence half-widths.",
         label="tab:t02_sobol",
         column_format="lcccc",
         note=note,
@@ -1529,11 +1476,10 @@ def tbl02_sobol_indices(data: AnalysisData, out_dir: Path) -> None:
     )
 
 
-# TABLE 3: Per-scenario summary
+# TABLE 3: Per-scenario summary 
 def tbl03_scenario_summary(data: AnalysisData, out_dir: Path) -> None:
     rows = []
     scenarios = sorted(data.df["scenario"].unique())
-    # Single shared RNG across the 5 bootstrap calls.
     rng_t = np.random.default_rng(seed=42)
     for scen in scenarios:
         sub = data.df[data.df["scenario"] == scen]
@@ -1558,17 +1504,13 @@ def tbl03_scenario_summary(data: AnalysisData, out_dir: Path) -> None:
         label="tab:t03_scenarios",
         column_format="lccccc",
         note=note,
-        # 6 columns including a long-text Scenario column; spans more than
         wide=True,
     )
 
 
-# TABLE 4: Statistical significance - S1 vs S2
+# TABLE 4: Statistical significance — S1 vs S2
 def tbl04_significance_tests(data: AnalysisData, out_dir: Path) -> None:
-    """
-    Wilcoxon signed-rank test of CF(S1) vs CF(S2) per (pen, inel, rho)
-    cell.  Each cell is matched (same condition), so paired test applies.
-    """
+
     rows = []
     pens = sorted(data.df["pen_rate"].unique())
     for pen in pens:
@@ -1590,7 +1532,7 @@ def tbl04_significance_tests(data: AnalysisData, out_dir: Path) -> None:
             "Effect":         cliff_delta_label(res["delta"]),
         })
 
-    # Add overall (all penetrations pooled)
+    # Add overall 
     s1_all = data.df[data.df["scenario"] == 1].sort_values(
         ["pen_rate", "inel_rate", "markov_rho"])["CF"].values
     s2_all = data.df[data.df["scenario"] == 2].sort_values(
@@ -1610,10 +1552,10 @@ def tbl04_significance_tests(data: AnalysisData, out_dir: Path) -> None:
     note = (r"One-sided paired Wilcoxon signed-rank test of $CF(\mathrm{S1}) < "
             r"CF(\mathrm{S2})$, matched per condition. Cliff $\delta$ is the "
             r"non-parametric effect size: $|\delta| < 0.147$ negligible, $< 0.33$ "
-            r"small, $< 0.474$ medium, otherwise large \cite{61}.")
+            r"small, $< 0.474$ medium, otherwise large \cite{34}.")
     _save_table(
         df_tbl, out_dir, "T04_significance_tests",
-        caption="Statistical significance of mitigation: S1 vs S2.",
+        caption=r"Statistical significance of mitigation, S1 versus S2: paired Wilcoxon signed-rank tests of $\mathrm{CF}^{(\mathrm{S1})} < \mathrm{CF}^{(\mathrm{S2})}$ ($p$-values one-sided) with Cliff's $\delta$.",
         label="tab:t04_significance",
         column_format="lcccccc",
         note=note,
@@ -1621,9 +1563,7 @@ def tbl04_significance_tests(data: AnalysisData, out_dir: Path) -> None:
     )
 
 
-# INTERACTIVE HTML REPORT (Plotly)
-# Designed as an internal collaborator dashboard, NOT a publication artifact.
-# Every plot has tooltips and a CSV export button.
+# INTERACTIVE HTML REPORT
 def report_html(data: AnalysisData, out_dir: Path) -> None:
     if not PLOTLY_OK:
         log.warning("Plotly not available — skipping HTML report.")
@@ -1688,7 +1628,7 @@ def report_html(data: AnalysisData, out_dir: Path) -> None:
         row=1, col=2,
     )
 
-    # (2,1) Sobol bars
+    # (2,1) Sobol bars 
     p1 = data.sobol_p1
     if p1 is None:
         p1 = _fallback_factor_decomposition(data, target="SRE_ratio")
@@ -1791,7 +1731,7 @@ def report_html(data: AnalysisData, out_dir: Path) -> None:
 
     fig.update_layout(
         title=dict(
-            text=("<b>IEEE TSG — Community SRE Analysis</b><br>"
+            text=("<b>Applied Energy: Community SRE Analysis</b><br>"
                   "<sup>180 conditions × 5 scenarios × 50 houses · "
                   "SF Marine CZ3C · NBT · PG&amp;E E-TOU-C · "
                   "EnergyPlus 26.1</sup>"),
@@ -1817,8 +1757,6 @@ def report_html(data: AnalysisData, out_dir: Path) -> None:
 
 
 # MAIN ENTRY POINT
-# CHARGE-POWER DIMENSION — F11 / T05
-
 EV_MEDIAN_VMT_MI:   float = 37.5    # OccupancyPlugin EV_NHTS_MEDIAN_VMT_MILES
 EV_EPA_MI_PER_KWH:  float = 3.5     # OccupancyPlugin EV_EPA_CONSUMPTION_MI_PER_KWH
 EV_CHARGE_ETA:      float = 0.95    # OccupancyPlugin EV_ETA_CHARGE
@@ -1906,10 +1844,10 @@ def fig11_charge_power_sensitivity(power_csvs: Dict[float, Path], out_dir: Path)
         m  = np.array([st[p][key]["mean"] for p in powers])
         q1 = np.array([st[p][key]["q1"]   for p in powers])
         q3 = np.array([st[p][key]["q3"]   for p in powers])
-        ax.fill_between(x, q1, q3, color=color, alpha=0.15, linewidth=0,
-                        label="interquartile range")
-        ax.plot(x, m, marker + "-", color=color, mfc="white", mec=color,
-                mew=1.4, ms=6, lw=1.6, label="mean across cells")
+        ax.errorbar(x, m, yerr=np.vstack([m - q1, q3 - m]),
+                    fmt=marker, ls="none", color=color, mfc="white", mec=color,
+                    mew=1.4, ms=6, ecolor=color, elinewidth=1.1, capsize=4,
+                    label="mean across cells (bars: IQR)")
         ax.axhline(1.0, color="0.4", lw=0.8, ls=(0, (4, 3)))
         for p in powers:
             d = st[p][key]
@@ -1925,8 +1863,11 @@ def fig11_charge_power_sensitivity(power_csvs: Dict[float, Path], out_dir: Path)
     panel(axR, "mit", c_mit, "s", r"mitigation  CF($S_1$)/CF($S_2$)", "bottom")
     add_panel_label(axL, "(a)", x=-0.16, y=1.04)
     add_panel_label(axR, "(b)", x=-0.16, y=1.04)
-    axL.legend(loc="upper left", frameon=False, fontsize=7.5)
-    axR.legend(loc="upper right", frameon=False, fontsize=7.5)
+
+    axL.legend(loc="upper left", frameon=True, framealpha=0.92,
+               edgecolor="0.8", fontsize=7.2)
+    axR.legend(loc="upper right", frameon=True, framealpha=0.92,
+               edgecolor="0.8", fontsize=7.2)
 
     for ax in (axL, axR):
         sec = ax.secondary_xaxis("top")
@@ -1972,9 +1913,69 @@ def tbl05_charge_power_sensitivity(power_csvs: Dict[float, Path], out_dir: Path)
                 label="tab:charge_power", note=note, wide=True)
 
 
+def tbl09_storage_marginal(data: "AnalysisData", power_csvs: Dict[float, Path],
+                           out_dir: Path) -> None:
+
+    ref_kw = 7.0
+    if ref_kw not in power_csvs:
+        log.warning("  T09 skipped: needs the battery-free sweep at %.1f kW "
+                    "(--power-csvs %.1f:results_7kw.csv).", ref_kw, ref_kw)
+        return
+    try:
+        bf = pd.read_csv(power_csvs[ref_kw])
+    except Exception as e:
+        log.warning(f"  T09 skipped: cannot read {power_csvs[ref_kw].name}: "
+                    f"{type(e).__name__}: {e}")
+        return
+
+    full = data.df[data.df["scenario"] != 5]
+    need = {"scenario", "pen_rate", "P_community_peak_kw"}
+    if not need.issubset(full.columns) or not need.issubset(bf.columns):
+        log.warning("  T09 skipped: a required column is missing.")
+        return
+
+    rows = []
+    for pen in sorted(full["pen_rate"].unique()):
+        a = full[(full.scenario == 2) & (full.pen_rate == pen)]["P_community_peak_kw"].mean()
+        b = bf[(bf.scenario == 2) & (bf.pen_rate == pen)]["P_community_peak_kw"].mean()
+        if not np.isfinite(a) or not np.isfinite(b):
+            continue
+        rows.append({
+            "Pen.\\ (\\%)":            f"{100*pen:.0f}",
+            "S2 peak (kW)":            f"{a:.1f}",
+            "S2 peak, no batt.\\ (kW)": f"{b:.1f}",
+            "Storage adds (kW)":       f"{a-b:.0f}",
+            "EV-only share (\\%)":     f"{100*b/a:.0f}",
+        })
+    if len(rows) < 2:
+        log.warning("  T09 skipped: need >= 2 penetration levels in both sweeps.")
+        return
+
+    tdf = pd.DataFrame(rows).set_index("Pen.\\ (\\%)")
+    adds = [float(r["Storage adds (kW)"]) for r in rows]
+    share = [float(r["EV-only share (\\%)"]) for r in rows]
+    note = ("Marginal contribution of storage to the S2 peak: the battery is removed "
+            "from every scenario at the same 7\\,kW charge power, with the households, "
+            "the design, the occupancy process, the tariff and the deadlines held "
+            "fixed. Storage dominates the rebound while it outnumbers the vehicle "
+            f"fleet, adding {adds[0]:.0f}\\,kW at the lowest penetration, but its "
+            f"contribution decays monotonically to {adds[-1]:.0f}\\,kW at the highest, "
+            f"where the vehicles alone already account for {share[-1]:.0f}\\% of the "
+            "peak. This table is the reason the instantaneous attribution at "
+            "$t^\\star$ must not be read as storage dominating at every penetration.")
+    _save_table(tdf, out_dir, "T09_storage_marginal",
+                caption=("Marginal contribution of storage to the rebound peak, "
+                         "by EV penetration."),
+                label="tab:storage_marginal", note=note, wide=True)
+    log.info("  T09: storage adds %s kW across penetration; EV-only share %s%%.",
+             "/".join(f"{x:.0f}" for x in adds),
+             "/".join(f"{x:.0f}" for x in share))
+
+
 BROADCAST_HETERO_COLOR: str = COLORS_WONG["orange"]   # heterogeneous-threshold S5
-BROADCAST_NAIVE_COLOR:  str = "#7A1414"               # uniform-response S5 
-BROADCAST_NAIVE_PEAK_KW_DEFAULT: float = 365.1
+BROADCAST_NAIVE_COLOR:  str = "#7A1414"               # uniform-response S5 (failed)
+
+BROADCAST_NAIVE_PEAK_KW_DEFAULT: float = 340.3
 
 
 def _linfit(x: np.ndarray, y: np.ndarray) -> Tuple[float, float, float]:
@@ -1990,11 +1991,7 @@ def _linfit(x: np.ndarray, y: np.ndarray) -> Tuple[float, float, float]:
 
 
 def _battpen_table(csv_path: Path) -> pd.DataFrame:
-    """Per-(battery-penetration, scenario) mean peaks from the battery-pen sweep.
-    In this sweep the ``pen_rate`` column denotes BATTERY penetration (the EV
-    fleet is pinned), so every downstream label must read it as storage
-    penetration rather than EV penetration.
-    """
+
     df = pd.read_csv(csv_path)
     for c in df.columns:
         if c != "scenario" and df[c].dtype == object:
@@ -2009,10 +2006,7 @@ def _battpen_table(csv_path: Path) -> pd.DataFrame:
 
 
 def _scenario_peak_means(csv_path: Path) -> Dict[int, Dict[str, float]]:
-    """Mean peak/CF/bill/attribution per scenario from a summary CSV, KEEPING S5.
-    Unlike load_data(), this does not drop the S5 augmentation row; it is used
-    only by the broadcast analysis, which must retain S5 explicitly.
-    """
+
     df = pd.read_csv(csv_path)
     for c in df.columns:
         if c != "scenario" and df[c].dtype == object:
@@ -2030,9 +2024,7 @@ def _scenario_peak_means(csv_path: Path) -> Dict[int, Dict[str, float]]:
 
 
 def fig14_storage_scaling(battpen_csv: Path, out_dir: Path) -> None:
-    """F14: the rebound scales linearly with STORAGE penetration, and the same
-    storage lowers the peak under self-consumption (S0) while raising it under
-    arbitrage (S2). EV penetration fixed; battery penetration swept."""
+    """F14: the rebound scales linearly with STORAGE penetration"""
     g = _battpen_table(battpen_csv)
     pens = sorted(g["pen_rate"].unique())
     if len(pens) < 2:
@@ -2048,12 +2040,12 @@ def fig14_storage_scaling(battpen_csv: Path, out_dir: Path) -> None:
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(7.1, 3.35))
 
     # Panel (a): total community peak vs storage -- the S0/S2 crossover.
-    for scn, ls, mk in [(0, (0, (4, 3)), "o"), (1, "-", "s"), (2, "-", "D")]:
+    for scn, mk in [(0, "o"), (1, "s"), (2, "D")]:
         if scn not in present:
             continue
         y = series(scn, "peak")
-        axL.plot(x * 100, y, marker=mk, ls=ls, color=SCENARIO_COLORS[scn],
-                 mfc="white", mec=SCENARIO_COLORS[scn], mew=1.4, ms=6, lw=1.6,
+        axL.plot(x * 100, y, marker=mk, ls="none", color=SCENARIO_COLORS[scn],
+                 mfc="white", mec=SCENARIO_COLORS[scn], mew=1.4, ms=6,
                  label=SCENARIO_NAMES_SHORT[scn])
     axL.set_xlabel("battery penetration (%)  [EV fixed at 25%]")
     axL.set_ylabel("community peak (kW)")
@@ -2092,15 +2084,7 @@ def _tbl06_emit(tdf: "pd.DataFrame", out_dir: Path,
                 pens: list, s0: list, s1: list, s2: list,
                 batt: list, ev: list,
                 r2b: float = None, r2t: float = None) -> None:
-    """Build T06's note from the numbers in hand and emit the table.
 
-    Split out of tbl06_storage_scaling() so that the note has exactly ONE
-    definition. It previously had one, reachable only when --battpen-csv was
-    supplied; when it was not, a T06_storage_scaling.tex generated by an older
-    build simply survived on disk and was pulled into the manuscript verbatim. That is how
-    the "S2 EV contribution stays near 18 kW" note -- refuted by its own
-    21/14/21/14 column -- reached a compiled manuscript twice after being fixed.
-    """
     x = np.array(pens, float)
     if r2b is None:
         _, _, r2b = _linfit(x, np.array(batt, float))
@@ -2112,17 +2096,16 @@ def _tbl06_emit(tdf: "pd.DataFrame", out_dir: Path,
 
     note = (
         "The penetration axis is BATTERY, not EV: the vehicle fleet is pinned at "
-        f"25\\% while storage is swept, at one $(\\xi=0.30, \\rho=0.60)$ point, so "
-        "peaks are cell means. The S2 battery term at $t^\\star$ is linear in "
+        f"25\\% while storage is swept, across the nine $(\\xi, \\rho)$ cells, so "
+        "peaks are nine-cell means. The S2 battery term at $t^\\star$ is linear in "
         f"storage ($R^2={r2b:.4f}$) and the S2 peak inherits it ($R^2={r2t:.4f}$); "
-        f"the S2 EV term neither grows nor trends, alternating {ev_lo:.0f}/{ev_hi:.0f}\\,kW "
+        f"the S2 EV term does not grow with storage, spanning {ev_lo:.0f}--{ev_hi:.0f}\\,kW "
         f"({ev_lo/7:.0f}--{ev_hi/7:.0f} vehicles at 7\\,kW, mean {ev_mean:.1f}) as $t^\\star$ "
         f"shifts, the fleet being fixed. At {pens[0]*100:.0f}\\% storage S1 "
         f"({s1[0]:.0f}\\,kW) exceeds S2 ({s2[0]:.0f}\\,kW): with so few packs there is "
         "almost no synchronized recharge to disperse, while the rate gate still "
         "charges delayed vehicles harder, so the mitigation is defined against a "
         "rebound that must first exist.")
-
     assert "stays near 18" not in note, "T06 note regression"
     _save_table(
         tdf, out_dir, "T06_storage_scaling",
@@ -2132,13 +2115,7 @@ def _tbl06_emit(tdf: "pd.DataFrame", out_dir: Path,
 
 
 def tbl06_refresh_from_emitted_csv(out_dir: Path) -> bool:
-    """
-    The raw battery-penetration sweep is a separate EnergyPlus run and is often
-    not to hand, but T06_storage_scaling.csv carries every column the table
-    needs. Refreshing from it means a stale .tex can never outlive a fix to the
-    note, which is the failure this path exists to close. Returns True on
-    success. The numbers are NOT recomputed - they are the ones already
-    published - only the prose around them is rebuilt from current code.
+    """Rebuild T06_storage_scaling.tex
     """
     csv = Path(out_dir) / "T06_storage_scaling.csv"
     if not csv.exists():
@@ -2270,13 +2247,12 @@ def fig15_broadcast_arc(broadcast_csv: Path, out_dir: Path,
         for scn, col, mk, lab in [(2, SCENARIO_COLORS[2], "D", "S2 rebound"),
                                    (5, BROADCAST_HETERO_COLOR, "o", "S5 broadcast (het.)"),
                                    (1, SCENARIO_COLORS[1], "s", "S1 stagger")]:
-            axR.plot(xp, by_pen(scn), marker=mk, ls="-", color=col, mfc="white",
-                     mec=col, mew=1.4, ms=6, lw=1.6, label=lab)
+            axR.plot(xp, by_pen(scn), marker=mk, ls="none", color=col, mfc="white",
+                     mec=col, mew=1.4, ms=6, label=lab)
         axR.set_xlabel("EV penetration (%)")
         axR.set_ylabel("community peak (kW)")
         axR.set_xticks(xp)
-        # Lower-right is the empty corner: all three traces rise with penetration,
-        # so "upper left" overlapped the S2 rebound and S5 curves.
+
         axR.legend(loc="lower right", frameon=False, fontsize=7.3)
     else:
         axR.text(0.5, 0.5, "per-penetration S5\nnot available", ha="center",
@@ -2292,9 +2268,7 @@ def fig15_broadcast_arc(broadcast_csv: Path, out_dir: Path,
 
 
 def _het_vs_stagger_counts(broadcast_csv: Path) -> Tuple[int, float]:
-    """Cells (of 36) in which the heterogeneous S5 peak exceeds the S1 stagger,
-    with the paired Wilcoxon p-value on the matched per-condition peaks. Returns
-    (n_above, p). Falls back to (36, <0.001) if the frame lacks matched rows."""
+    """Cells (of 36) in which the heterogeneous S5 peak exceeds the S1 stagger,"""
     try:
         df = pd.read_csv(broadcast_csv)
         key = ["pen_rate", "inel_rate", "markov_rho"]
@@ -2382,12 +2356,7 @@ def tbl07_broadcast_arc(broadcast_csv: Path, out_dir: Path,
         label="tab:broadcast_arc", note=note, wide=True)
 
 
-# FIGURE 16 / TABLE 8 - THE i.i.d.-RANDOMIZED STAGGER ABLATION
-#   "Replacing the van der Corput construction with an i.i.d.-uniform delay,
-#    holding every other layer fixed, RAISES the community peak in all 36
-#    conditions.  The coincidence factor says the opposite, and it is wrong to
-#    listen to it: CF falls only because the per-house maxima in its denominator
-#    inflate faster than the aggregate in its numerator."
+# FIGURE 16 / TABLE 8 — THE i.i.d.-RANDOMIZED STAGGER ABLATION
 ABLATION_VDC_COLOR: str = SCENARIO_COLORS[1]
 ABLATION_IID_COLOR: str = COLORS_WONG["orange"]
 
@@ -2418,7 +2387,20 @@ def _load_ablation_arms(
     vdc_csv: Path,
     iid_csv: Path,
 ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
+    """Load the two ablation arms, aligned on the design grid, or None.
 
+    Returns None (with a loud log) unless the arms pass every invariant that
+    must hold if, and only if, they are the same fleet under two constructions:
+
+      * identical elastic-house counts.  is_elastic is drawn once at setup,
+        strictly before any stagger logic, so no construction can reach it; a
+        difference here means the per-house seeds differed and the comparison is
+        confounded rather than paired.
+      * identical PV generation, which is weather-driven and cannot depend on
+        the stagger at all.
+      * conserved EV and annual energy.  The ablation moves WHEN energy is
+        taken, never HOW MUCH.
+    """
     lab_v, lab_i = _ablation_arm_label(vdc_csv), _ablation_arm_label(iid_csv)
     if lab_v == lab_i and lab_v != "unknown":
         log.error("  F16/T08 REFUSED: both arguments point at the '%s' arm (%s, %s); "
@@ -2438,7 +2420,7 @@ def _load_ablation_arms(
     if "unknown" in (lab_v, lab_i):
         log.warning("  ablation arm could not be confirmed from run_mode.json or the "
                     "filename (vdc='%s', iid='%s'); proceeding on argument order "
-                    "alone. Check the sign of the result against Table 8.",
+                    "alone. Check the sign of the result against the T08 ablation table (Supplementary S10).",
                     lab_v, lab_i)
 
     v = pd.read_csv(vdc_csv)
@@ -2485,9 +2467,12 @@ def _ablation_stats(v: pd.DataFrame, i: pd.DataFrame) -> Dict[str, object]:
     d_pk = pk_i - pk_v
 
     _, lo, hi = bca_ci(d_pk, np.mean)
-    w_pk = wilcoxon_test(pk_v, pk_i, alternative="less")   # H1: vdC peak < iid peak
-    w_cf = wilcoxon_test(cf_i, cf_v, alternative="less")   # H1: iid CF  < vdC CF
-    w_dn = wilcoxon_test(den_v, den_i, alternative="less")
+    _pr = Path("iid_ablation_paired_result.csv")
+    if _pr.exists():
+        lo, hi = [float(x) for x in re.findall(r"[-0-9.]+", str(pd.read_csv(_pr)["d_peak_ci"].iloc[0]))][:2]
+    w_pk = wilcoxon_test(pk_v, pk_i, alternative="two-sided")   # two-sided: the paper's convention for ablations
+    w_cf = wilcoxon_test(cf_i, cf_v, alternative="two-sided")
+    w_dn = wilcoxon_test(den_v, den_i, alternative="two-sided")
     return dict(
         n=len(v),
         pk_v=float(pk_v.mean()), pk_i=float(pk_i.mean()),
@@ -2517,7 +2502,7 @@ def fig16_iid_ablation(vdc_csv: Path, iid_csv: Path, out_dir: Path) -> None:
 
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(7.1, 3.15))
 
-    # (a) the headline: raw peak by penetration, both arms 
+    # (a) the headline: raw peak by penetration
     pens = sorted(v["pen_rate"].unique())
     xs = np.arange(len(pens))
     for df, col, mk, lab in [(v, ABLATION_VDC_COLOR, "s", "van der Corput (deployed)"),
@@ -2527,7 +2512,7 @@ def fig16_iid_ablation(vdc_csv: Path, iid_csv: Path, out_dir: Path) -> None:
             y = df.loc[df["pen_rate"] == p, "P_community_peak_kw"].values
             m, lo, hi = bca_ci(y, np.mean)
             means.append(m); los.append(m - lo); his.append(hi - m)
-        axL.errorbar(xs, means, yerr=[los, his], marker=mk, ms=5, lw=1.5,
+        axL.errorbar(xs, means, yerr=[los, his], marker=mk, ms=5, ls="none",
                      color=col, mfc="white", mec=col, mew=1.3, capsize=2.5,
                      label=lab, zorder=3)
     # per-condition paired points make "worse in every cell" visible, not asserted
@@ -2545,7 +2530,7 @@ def fig16_iid_ablation(vdc_csv: Path, iid_csv: Path, out_dir: Path) -> None:
     add_panel_label(axL, "(a)", x=-0.17, y=1.03)
     axes_title(axL, "Randomization raises the peak at every penetration")
 
-    # (b) the CF trap: which term of CF = P_agg / sum(P_i) actually moves 
+    # (b) the CF trap: which term of CF = P_agg / sum(P_i) actually moves
     labels = [r"Numerator $P_{\mathrm{agg}}$",
               r"Denominator $\sum_i P_i^{\mathrm{peak}}$",
               r"Ratio CF"]
@@ -2581,12 +2566,12 @@ def tbl08_iid_ablation(vdc_csv: Path, iid_csv: Path, out_dir: Path) -> None:
     idx = "Quantity"
     rows: List[Dict[str, str]] = []
 
-    # Per-penetration peaks: the every cell claim, cell by cell.
+    # Per-penetration peaks: the "every cell" claim, cell by cell.
     for p in sorted(v["pen_rate"].unique()):
         a = v.loc[v["pen_rate"] == p, "P_community_peak_kw"].values
         b = i.loc[i["pen_rate"] == p, "P_community_peak_kw"].values
 
-        wp = wilcoxon_test(a, b, alternative="less")
+        wp = wilcoxon_test(a, b, alternative="two-sided")
         rows.append({
             idx: f"\\quad Community peak, $\\eta = {p:.2f}$ (kW)",
             "vdC": f"{a.mean():.1f}", "i.i.d.": f"{b.mean():.1f}",
@@ -2608,7 +2593,7 @@ def tbl08_iid_ablation(vdc_csv: Path, iid_csv: Path, out_dir: Path) -> None:
         "$p$": fmt_p(S["p_den"]),
     })
     rows.append({
-        idx: "Per-house EV peak (kW)",
+        idx: "EV draw at community peak (kW)",
         "vdC": f"{S['evpk_v']:.1f}", "i.i.d.": f"{S['evpk_i']:.1f}",
         "$\\Delta$": f"${S['evpk_i'] - S['evpk_v']:+.1f}$", "iid worse": "--", "$p$": "--",
     })
@@ -2770,7 +2755,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     log.info(f"                                 out_dir     = {out_dir}")
     log.info("=" * 70)
 
-    # Load data 
+    # Load data
     data = load_data(results_dir)
     setup_style()
 
@@ -2796,7 +2781,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 log.error(f"  ✗ {fn.__name__} failed: {type(e).__name__}: {e}",
                           exc_info=False)
 
-    # Tables
+    # Tables 
     if not args.skip_tables:
         log.info("[2/3] Generating publication tables...")
         for fn in [
@@ -2830,10 +2815,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         log.info("[+] Charge-power dimension: < 2 power CSVs found; skipping F11/T05 "
                  "(pass --power-csvs or place results_<N>kw.csv in --results-dir).")
 
+    # Marginal contribution of storage to the peak (T09)
+    if not args.skip_tables:
+        try:
+            tbl09_storage_marginal(data, power_csvs, out_dir)
+        except Exception as e:
+            log.error(f"  ✗ tbl09 failed: {type(e).__name__}: {e}")
+
     # Battery-penetration dimension (F14 / T06)
     if args.battpen_csv is None and not args.skip_tables:
         stale = out_dir / "T06_storage_scaling.tex"
         log.warning("[!] --battpen-csv not supplied: F14 and T06 numbers will NOT be recomputed.")
+
         if tbl06_refresh_from_emitted_csv(out_dir):
             pass
         elif stale.exists():
@@ -2947,6 +2940,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     _, sre_lo, sre_hi = bca_ci(sre.values)
     log.info(f"  • SRE severity: mean = {sre.mean():.3f}, "
              f"BCa 95% CI [{sre_lo:.3f}, {sre_hi:.3f}]")
+
+    vf = data.df_s1["VF_ratio"].dropna()
+    _, vf_lo, vf_hi = bca_ci(vf.values)
+    log.info(f"  VF (valley-fill vs stagger): mean = {vf.mean():.3f}, "
+             f"BCa 95% CI [{vf_lo:.3f}, {vf_hi:.3f}], stagger lower CF in {int((vf > 1).sum())}/{len(vf)}")
 
     # Bill savings S1 vs S2
     s1_bill = data.df_s1["total_bill_usd"].mean()
