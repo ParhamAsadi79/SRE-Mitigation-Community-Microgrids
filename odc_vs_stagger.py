@@ -11,11 +11,11 @@ H        = 24            # horizon: slot 0 = 12:00 ... slot 19 = 07:00 (deadline
 DEADLINE = 19            # 07:00 next morning
 FLEET_CSV = "NHTS_Fleet_Data.csv"
 
-def hour_to_slot(h):     # map clock hour (0-24) to horizon slot (12:00 origin)
+def hour_to_slot(h):     # map clock hour (0-24) to horizon slot
     return int(round((h - 12) % 24))
 
 # Representative community base load D(t): 50-home residential, SF/TMY3-like,
-# evening peak ~19-21h, overnight trough, morning bump; scaled to ~43 kW peak. 
+# evening peak ~19-21h, overnight trough, morning bump; scaled to ~43 kW peak.
 clock = [(s + 12) % 24 for s in range(H)]
 shape = []
 for h in clock:
@@ -39,7 +39,7 @@ for r in csv.DictReader(open(FLEET_CSV)):
     fleet.append({"arr": arr, "E": E, "win": window})
 N = len(fleet)
 
-# box+sum projection: project y onto {0<=r<=RATE on window, sum r*dt = E} 
+# box+sum projection: project y onto {0<=r<=RATE on window, sum r*dt = E}
 def project(y, window, E):
     r = np.zeros(H)
     yv = y[window]
@@ -54,7 +54,7 @@ def project(y, window, E):
     r[window] = np.clip(yv + 0.5 * (lo + hi), 0.0, RATE_KW)
     return r
 
-# ODC (Gan et al.)
+# ODC
 def run_odc(gamma, tol=1e-3, max_iter=5000):
     """Returns (charging matrix, rounds-to-converge, per-round peak history)."""
     R = np.zeros((N, H))                            # init charging profiles = 0
@@ -70,7 +70,7 @@ def run_odc(gamma, tol=1e-3, max_iter=5000):
         p_prev = p
     return R, max_iter, hist
 
-# van der Corput stagger (Alg. 1, comm-free)
+# van der Corput stagger
 def vdc(n, base=2):
     q, d = 0.0, 1.0
     while n > 0:
@@ -102,7 +102,7 @@ def run_uncoordinated():
             put = min(RATE_KW, e / DT_H); R[n, t] = put; e -= put * DT_H; t += 1
     return R
 
-# run 
+# run
 gamma = 0.9 / N                                     # gamma < 1/(N*B), B = 1
 R_odc, rounds, hist = run_odc(gamma)
 R_stg = run_stagger()
@@ -125,7 +125,7 @@ xl = [f"{(s + 12) % 24:02d}" for s in range(H)]
 
 fig, ax = plt.subplots(1, 2, figsize=(7.2, 2.9))
 
-ax[0].plot(xt, tot_unc, color=C["unc"], lw=1.8, label=f"Uncoordinated (rebound), peak {peak_unc:.0f} kW")
+ax[0].plot(xt, tot_unc, color=C["unc"], lw=1.8, label=f"Uncoordinated (on arrival), peak {peak_unc:.0f} kW")
 ax[0].plot(xt, tot_stg, color=C["stg"], lw=1.8, label=f"vdC stagger (comm-free), peak {peak_stg:.0f} kW")
 ax[0].plot(xt, tot_odc, color=C["odc"], lw=1.8, label=f"ODC (Gan et al.), peak {peak_odc:.0f} kW")
 ax[0].fill_between(xt, 0, D, color=C["base"], alpha=0.25, label="Base (non-EV) load")
@@ -154,11 +154,7 @@ np.savez("odc_results.npz", D=D, unc=tot_unc, stg=tot_stg, odc=tot_odc, hist=np.
          rounds=rounds, peak_unc=peak_unc, peak_stg=peak_stg, peak_odc=peak_odc,
          red_stg=red_stg, red_odc=red_odc, gap=gap, capture=capture, N=N)
 
-# manuscript reference
-# Section 5.6 and Fig. 14 report these. They are asserted rather than trusted:
-# this script and odc_resilience.py both compute the eta=1.00 point, and for four
-# audit rounds the shipped odc_penetration_sweep.csv disagreed with Table 8
-# because nothing compared the two paths.
+#  manuscript reference .
 SEC56 = {"peak_unc": 201.9, "peak_stg": 118.2, "peak_odc": 71.4, "rounds": 58,
          "red_stg": 41.5, "red_odc": 64.7, "gap": 65.6, "capture": 64.1}
 _bad = []
@@ -174,11 +170,11 @@ if _bad:
                      + "  Fix the code or the manuscript before shipping either.\n")
 print("  [Sec 5.6 check] all 8 reported values match the manuscript.")
 
-# report
+# report 
 print("=" * 60)
 print(f"{'method':<26}{'peak kW':>10}{'reduction':>12}{'comm rounds':>12}")
 print("-" * 60)
-print(f"{'Uncoordinated (rebound)':<26}{peak_unc:>10.1f}{'--':>12}{0:>12}")
+print(f"{'Uncoordinated (on arrival)':<26}{peak_unc:>10.1f}{'--':>12}{0:>12}")
 print(f"{'vdC stagger (comm-free)':<26}{peak_stg:>10.1f}{red_stg:>11.1f}%{0:>12}")
 print(f"{'ODC (Gan et al.)':<26}{peak_odc:>10.1f}{red_odc:>11.1f}%{rounds:>12}")
 print("=" * 60)
