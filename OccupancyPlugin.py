@@ -12,25 +12,24 @@ from typing import Dict, List, Optional, Tuple
 from pyenergyplus.plugin import EnergyPlusPlugin
 
 
-# 1. MODULE-LEVEL CONSTANTS  (unchanged from v9.5)
-
-# PG&E E-TOU-C residential tariff
+# 1. MODULE-LEVEL CONSTANTS
 RATE_PEAK_SUMMER:    float = 0.52240   # Jun 1-Sep 30, peak 16:00-21:00 (4-9 PM)
 RATE_OFFPEAK_SUMMER: float = 0.39940   # Jun 1-Sep 30, all other hours
 RATE_PEAK_WINTER:    float = 0.39757   # Oct 1-May 31, peak 16:00-21:00 (4-9 PM)
 RATE_OFFPEAK_WINTER: float = 0.36757   # Oct 1-May 31, all other hours
 PEAK_START_H:        int   = 16        # 4 PM, first peak hour
 PEAK_END_H:          int   = 20        # last peak hour (21:00 reverts to off-peak)
-# Reference off-peak rate (annual mean of the seasonal off-peak rates)
+
 RATE_OFF_PEAK:       float = (RATE_OFFPEAK_SUMMER + RATE_OFFPEAK_WINTER) / 2.0
 EXPORT_RATE_NEM:     float = 0.038      # NEM 3.0 net billing avoided-cost export
 
 # S3 (Flat-tariff control) energy rate = time-weighted average of the seasonal
+# two-tier E-TOU-C schedule (5 peak hours + 19 off-peak hours per day)
 FLAT_TARIFF_SUMMER:  float = (5.0 * RATE_PEAK_SUMMER + 19.0 * RATE_OFFPEAK_SUMMER) / 24.0
 FLAT_TARIFF_WINTER:  float = (5.0 * RATE_PEAK_WINTER + 19.0 * RATE_OFFPEAK_WINTER) / 24.0
 FLAT_TARIFF_RATE:    float = (FLAT_TARIFF_SUMMER + FLAT_TARIFF_WINTER) / 2.0  # annual mean (compat)
 
-# CAISO grid-average emissions intensity (gCO2/kWh), annual representative day.
+# CAISO grid-average emissions intensity (gCO2/kWh)
 CO2_BY_HOUR: Dict[int, float] = {
      0: 296,  1: 287,  2: 280,  3: 276,  4: 276,  5: 289,
      6: 303,  7: 282,  8: 235,  9: 179, 10: 143, 11: 125,
@@ -52,10 +51,10 @@ BATTERY_MAX_SOC_FRAC:     float = 0.95
 BATTERY_ETA_CHARGE:       float = 0.96
 BATTERY_ETA_DISCHARGE:    float = 0.96
 
-# GLOBAL STORAGE MASTER SWITCH. 
+# GLOBAL STORAGE MASTER SWITCH
 ENABLE_BATTERY: bool = True
 
-# Battery DoD-weighted Wohler degradation
+# Battery DoD-weighted Wöhler degradation
 BATT_WOHLER_A:     float = 7.543e-4
 BATT_WOHLER_GAMMA: float = 1.671
 BATT_WOHLER_N_REF: float = 3_500.0
@@ -65,10 +64,11 @@ PV_AREA_M2:             float = 20.0
 PV_ETA_STC:             float = 0.18
 PV_TEMP_COEFF:          float = 0.004
 PV_NOCT_C:              float = 45.0
-PV_SYSTEM_DERATE:       float = 0.88  
+PV_SYSTEM_DERATE:       float = 0.88   # v14: balance-of-system losses the temperature-only
+
 SOLAR_THRESHOLD_W_M2:   float = 25.0
 
-# EV hardware (Level-2 SAE J1772 + bidirectional V2G)
+# EV hardware
 EV_CHARGE_POWER_KW: float = 7
 EV_CHARGER_POWER_W: float = EV_CHARGE_POWER_KW * 1000.0
 EV_CAPACITY_KWH:    float = 50.0
@@ -77,22 +77,18 @@ EV_ETA_V2G:         float = 0.92
 EV_MIN_V2G_SOC_KWH: float = 10.0
 EV_CHARGER_KW_NET:  float = (EV_CHARGER_POWER_W / 1000.0) * EV_ETA_CHARGE
 
-# Disabled to match the stated charge-only design.
+# VEHICLE-TO-GRID MASTER SWITCH
 ENABLE_V2G: bool = False
 
-# NHTS-derived EV SoC model
+# NHTS-derived EV SoC model 
 EV_EPA_CONSUMPTION_MI_PER_KWH: float = 3.5
 EV_SOC_MIN_ARRIVAL:            float = 0.10
 EV_NHTS_MEDIAN_VMT_MILES:      float = 37.5
 
-# Algorithm 1 - anchor times for the decentralized stagger
-ALGO1_PRICE_DROP_START_H: float = 21.0   # 21:00 - on-peak to mid-peak edge,
-                                          # the largest single price drop
-                                          # of the day; Algorithm-1 stagger
-                                          # window anchor.
-TARIFF_OFF_PEAK_START_H:  float = 22.0   # 22:00 - mid-peak to off-peak edge
-                                          # per PG&E E-TOU-C 2024 (matches
-                                          # RATE_OFF_PEAK schedule above).
+# Algorithm
+ALGO1_PRICE_DROP_START_H: float = 21.0   # 21:00 — on-peak → mid-peak edge
+TARIFF_OFF_PEAK_START_H:  float = 22.0   # 22:00 — mid-peak → off-peak edge
+
 ALGO1_OFF_PEAK_START_H:  float = ALGO1_PRICE_DROP_START_H
 
 ALGO1_MORNING_ROLLOVER_H: float = 12.0
@@ -101,16 +97,15 @@ ALGO1_MAX_DELAY_MIN:    int   = 60
 EMPIRICAL_DEPARTURE_H:         float = 7.0
 EMPIRICAL_DEPARTURE_H_WEEKEND: float = 9.5
 
-# At-home state machine timing parameters
 EV_CALENDAR_JITTER_H:        float = 0.25  # ± uniform jitter on arrival/departure
 EV_DEADLINE_TARGET_FRAC:     float = 1.0   # SoC fraction expected at departure
 
-# window-aware stagger and decentralized rate modulation
+
 ALGO1_TAU_SAFETY_H:   float = 0.25     # safety margin against SoC/weather noise
-ALGO1_TAU_MAX_HARD_H: float = 8.0      # hard cap τ_max 
+ALGO1_TAU_MAX_HARD_H: float = 8.0      # hard cap τ_max (prevents overflow into AM peak)
 
 ALGO1_ADAPTIVE_WINDOW: bool  = True
-ALGO1_TAU_MAX_ADAPT_H: float = 11.0    # upper bound on the adaptive slack (h);
+ALGO1_TAU_MAX_ADAPT_H: float = 11.0    # upper bound on the adaptive slack (h)
 
 ALGO1_DRM_ENABLE:     bool  = True     # enable continuous rate modulation
 ALGO1_DRM_MIN_RATE_FRAC: float = 0.10  # minimum charger rate (avoids stalling)
@@ -120,33 +115,32 @@ ALGO1_PRICE_ALPHA:    float = 0.6      # weight on price in shadow signal
 ALGO1_PRICE_BETA:     float = 0.4      # weight on CO2 in shadow signal
 
 ALGO1_BROADCAST_GAMMA: float = 0.70    # throttle strength applied to the load EXCESS
-#                                        over a house's threshold; tunable.
-ALGO1_BROADCAST_FLOOR: float = 0.30    # floor on the S5 battery-recharge rate under the
-#                                        broadcast throttle (matches the EV arbiter floor).
-ALGO1_BROADCAST_THETA_MIN: float = 0.15  # lowest per-house back-off threshold (fraction
-#                                          of the community peak at which this home starts
-#                                          throttling). Homes here back off aggressively.
-ALGO1_BROADCAST_THETA_MAX: float = 0.85  # highest per-house threshold; these homes throttle
-#                                          only near the community peak, and only weakly.
-ALGO1_BROADCAST_THETA_BASE: int   = 3    # van der Corput base for the threshold spread;
-#                                          base 3 is orthogonal to the base-2 stagger.
+
+ALGO1_BROADCAST_FLOOR: float = 0.30    # floor on the S5 battery-recharge rate
+
+ALGO1_BROADCAST_THETA_MIN: float = 0.15  # lowest per-house back-off threshold
+
+ALGO1_BROADCAST_THETA_MAX: float = 0.85  # highest per-house threshold
+
+ALGO1_BROADCAST_THETA_BASE: int   = 3    # van der Corput base for the threshold spread
 
 # LAYER-1 CONSTRUCTION SWITCH (i.i.d. ABLATION ARM)
-ALGO1_STAGGER_MODE: str = "vdc"   # "vdc" (deployed default) , "iid" 
+ALGO1_STAGGER_MODE: str = "vdc"   # "vdc" (deployed default)  "iid" (S10 ablation arm)
 ALGO1_IID_SEED:     int = 42      # follows the RANDOM_STATE = 42 sweep convention
 
+# THE SEED THE SWEEP REPRODUCES FROM
 SIM_SEED: int = 42
 
-ALGO1_V2G_RESERVE_KWH: float = 5.0     # extra SoC kept beyond MIN for departure rescue
+ALGO1_V2G_RESERVE_KWH: float = 5.0     
 
 # Valley-Filling (Scenario 4)
 VALLEY_START_H:   float = 0.0
 VALLEY_END_H:     float = 6.0
 
 ENABLE_SOLAR_CHARGE:  bool  = False
-SOLAR_CHARGE_START_H: float = 10.0   # PV meaningfully available; concentrates draw at high irradiance
+SOLAR_CHARGE_START_H: float = 10.0   # PV meaningfully available
 
-# V2G off-site cost 
+# V2G off-site cost
 V2G_OFFSITE_RATE_USD_KWH: float = 0.25
 V2G_OFFSITE_ETA:          float = EV_ETA_CHARGE
 
@@ -172,7 +166,7 @@ SIDECAR_HEADER: List[str] = [
     "price_usd_kwh", "co2_g_kwh", "is_peak",
     "outdoor_temp_c", "irradiance_w_m2",
     "occupancy_people",
-    "building_w",            # HVAC+lights+equip from E+ meter
+    "building_w",            # v9.6: true HVAC+lights+equip from E+ meter
     "pv_w", "ev_w", "battery_w", "net_grid_w",
     "ev_soc_kwh", "battery_soc_wh", "battery_soh_frac",
     "hvac_precool", "scenario",
@@ -182,7 +176,7 @@ SIDECAR_HEADER: List[str] = [
 # 2. PURE-FUNCTION HELPERS
 
 def _nhts_soc_from_distance(distance_miles: float, capacity_kwh: float) -> float:
-    """NHTS trip distance to EV arrival SoC."""
+    
     if capacity_kwh <= 0.0:
         return EV_SOC_MIN_ARRIVAL
     energy_used = distance_miles / EV_EPA_CONSUMPTION_MI_PER_KWH
@@ -200,7 +194,7 @@ def _get_tariff(hour: int, month: int) -> Tuple[float, bool]:
 
 
 def _get_tariff_for_scenario(hour: int, scenario_mode: int, month: int) -> Tuple[float, bool]:
-
+    
     if scenario_mode == 3:
         # Flat tariff: no within-day price variation, no peak window.
         is_summer = 6 <= month <= 9
@@ -218,7 +212,7 @@ def pv_power_w(irradiance_w_m2: float, outdoor_temp_c: float) -> float:
 
 
 def van_der_corput(n: int, base: int = 2) -> float:
-
+    
     q, denom = 0.0, 1.0
     while n > 0:
         denom *= base
@@ -230,7 +224,7 @@ def van_der_corput(n: int, base: int = 2) -> float:
 def _iid_uniform_frac(house_slot_idx: int,
                       day_count:      int,
                       seed:           int = ALGO1_IID_SEED) -> float:
-
+    
     MASK64 = 0xFFFFFFFFFFFFFFFF
     z = (seed           * 0x9E3779B97F4A7C15
          + house_slot_idx * 0xBF58476D1CE4E5B9
@@ -242,7 +236,7 @@ def _iid_uniform_frac(house_slot_idx: int,
 
 
 def _stable_house_seed(house_id: str, sim_seed: int = SIM_SEED) -> int:
-
+    
     payload = f"{int(sim_seed)}:{house_id}".encode("utf-8")
     digest  = hashlib.blake2b(payload, digest_size=8).digest()
     return int.from_bytes(digest, "big") % (2 ** 31)
@@ -312,7 +306,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
         self._dep_fired_today:       bool  = False
         self._arr_fired_today:       bool  = False
         self.ev_departure_h_today:   float = EMPIRICAL_DEPARTURE_H
-        self.ev_arrival_h_today:     float = EMPIRICAL_DEPARTURE_H + 24.0  
+        self.ev_arrival_h_today:     float = EMPIRICAL_DEPARTURE_H + 24.0  # placeholder
         self.ev_daily_kwh_consumed:  float = 0.0
         self.battery_soc_wh:         float = (
             BATTERY_CAPACITY_WH * BATTERY_INIT_SOC_FRAC
@@ -350,7 +344,6 @@ class OccupancyPlugin(EnergyPlusPlugin):
         self.h_cool_sp: Dict[str, int] = {}
         self.h_heat_sp: Dict[str, int] = {}
 
-        # Phase-1 to Phase-2 handoff state (single timestep scope)
         self._ts_valid:        bool  = False
         self._ts_day:          int   = -1
         self._ts_hour:         int   = -1
@@ -383,18 +376,18 @@ class OccupancyPlugin(EnergyPlusPlugin):
         self._stat_co2_peak_kg:      float = 0.0
         self._stat_co2_offpeak_kg:   float = 0.0
         self._stat_offsite_cost_usd: float = 0.0
-        #  departure deadline audit
+        # departure deadline audit
         self._stat_dep_events:           int   = 0
         self._stat_dep_deadline_misses:  int   = 0
         self._stat_dep_soc_at_dep_kwh:   float = 0.0   # cumulative for averaging
         self._stat_drive_kwh_consumed:   float = 0.0   # cumulative driving energy
         self._run_wall_t0:           float = 0.0
         self._warned_handles:        bool  = False
-        self._warned_no_meter:       bool  = False    # one-shot meter warning
-        self._meter_ok_logged:       bool  = False    # one-shot re-acquire-success log
-        self.h_building_var:         int   = -1       # facility-elec VARIABLE fallback handle
-        self._var_probe_done:        bool  = False    # probe-candidate-keys once latch
-        self._summary_written:       bool  = False    # emit-once latch for annual summary
+        self._warned_no_meter:       bool  = False    # v9.6: one-shot meter warning
+        self._meter_ok_logged:       bool  = False    # v13.8: one-shot re-acquire-success log
+        self.h_building_var:         int   = -1       # v13.9: facility-elec VARIABLE fallback handle
+        self._var_probe_done:        bool  = False    # v13.9: probe-candidate-keys once latch
+        self._summary_written:       bool  = False    # v12.5: emit-once latch for annual summary
 
     # 4. ALGORITHM 1 TAU-MAX AND CONFIG LOAD
 
@@ -433,7 +426,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
             with open(cfg_path, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
 
-            # CONFIG_REQUIRED_FIELDS check
+            # M-02: CONFIG_REQUIRED_FIELDS check
             _REQUIRED: List[tuple] = [
                 ("scenario",           1,    "scenario mode (1=S1)"),
                 ("has_ev",             True, "EV present flag"),
@@ -454,7 +447,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
 
             self.scenario_mode      = int(data.get("scenario", 1))
             self.has_ev             = bool(data.get("has_ev", True))
-            # Battery-penetration sensitivity
+
             self.has_battery        = bool(data.get("has_battery", True))
             self.inelasticity_ratio = float(data.get("inelasticity_ratio", 0.30))
 
@@ -479,7 +472,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
                     _theta_frac = van_der_corput(
                         self._house_slot_idx, base=ALGO1_BROADCAST_THETA_BASE)
                 else:
-                    _theta_frac = 0.5  # unknown slot -> neutral midpoint
+                    _theta_frac = 0.5  
                 self._broadcast_theta = (
                     ALGO1_BROADCAST_THETA_MIN
                     + (ALGO1_BROADCAST_THETA_MAX - ALGO1_BROADCAST_THETA_MIN)
@@ -508,6 +501,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
                         frac = van_der_corput(self._house_slot_idx, base=2)
                     self.smart_delay_min = int(round(frac * tau_max_min))
                 else:
+
                     self.smart_delay_min = self.rng.randint(0, tau_max_min)
             else:
                 self.smart_delay_min = 0
@@ -520,7 +514,10 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 min_chg_h    = e_deficit / EV_CHARGER_KW_NET
                 valley_win_h = max(
                     0.0, VALLEY_END_H - VALLEY_START_H - min_chg_h)
-                self._valley_start_offset_h = self.rng.uniform(0.0, valley_win_h)
+
+                _valley_rng = random.Random(
+                    (house_seed * 0x9E3779B97F4A7C15 + 0x5A175A17) & 0xFFFFFFFFFFFF)
+                self._valley_start_offset_h = _valley_rng.uniform(0.0, valley_win_h)
 
             self.max_capacity = float(data.get("max_capacity", 5.0))
             self.zones        = [
@@ -556,14 +553,14 @@ class OccupancyPlugin(EnergyPlusPlugin):
             self._stat_building_kwh = 0.0
             self._stat_co2_saved_kg = 0.0
             self._stat_co2_peak_kg  = self._stat_co2_offpeak_kg = 0.0
-            # initialize at-home state machine.
+
             if self.has_ev and self.ev_capacity_kwh > 0:
                 self.ev_at_home  = True
                 self.ev_soc_kwh  = self.forced_soc_frac * self.ev_capacity_kwh
             else:
                 self.ev_at_home  = False
                 self.ev_soc_kwh  = 0.0
-
+            # Daily-fired flags re-arm fresh
             self._dep_fired_today           = False
             self._arr_fired_today           = False
             self._stat_dep_events           = 0
@@ -571,7 +568,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
             self._stat_dep_soc_at_dep_kwh   = 0.0
             self._stat_drive_kwh_consumed   = 0.0
             self._run_wall_t0 = time.monotonic()
-            self._summary_written = False
+            self._summary_written = False   # re-arm the emit-once latch
 
             self._open_sidecar()
             self._initialised = True
@@ -666,7 +663,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
 
     def on_begin_new_environment(self, state) -> int:
 
-        self._close_sidecar()  
+        self._close_sidecar()   # flush + close any prior period first
         self.do_setup   = True
         self.last_day   = -1
         self.zones      = []
@@ -685,7 +682,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
             from pathlib import Path as _Path
 
             src = _Path(path) if path else None
-
+            # Fallback: resolve the S1 community series by globbing if needed.
             if src is None or src.is_dir() or (not src.exists()):
                 search_dir = src if (src is not None and src.is_dir()) else (
                     src.parent if src is not None else None)
@@ -693,7 +690,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
                     hits = sorted(search_dir.glob("community_ts_*_S1.csv"))
                     src = hits[0] if hits else None
             if src is None or not src.exists():
-                return  
+                return  # no broadcast available -> S5 falls back to S1
 
             sums: Dict[int, float] = {}
             counts: Dict[int, int] = {}
@@ -717,18 +714,18 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 self._broadcast_profile = profile
                 self._broadcast_peak_kw = max(max(profile.values()), 1e-6)
         except Exception:
+            # Defensive: any unexpected error -> empty profile -> S5 == S1.
             self._broadcast_profile = {}
             self._broadcast_peak_kw = 0.0
 
     def _broadcast_load_frac(self, hour: int) -> float:
-        """Return the normalized broadcast community load at hour, in [0, 1].
-        """
+     
         if not self._broadcast_profile or self._broadcast_peak_kw <= 0.0:
             return 0.0
         net_kw = self._broadcast_profile.get(int(hour) % 24, 0.0)
         return max(0.0, min(1.0, net_kw / self._broadcast_peak_kw))
 
-    # 6. PHYSICS ENGINES
+    # 6. PHYSICS ENGINES  
 
     def _compute_ev_dispatch(
         self,
@@ -740,15 +737,13 @@ class OccupancyPlugin(EnergyPlusPlugin):
         price: float = RATE_OFF_PEAK,
         is_weekend: bool = False,
     ) -> float:
-        """
-        Returns grid_draw_w (> 0 = charge, < 0 = V2G export, 0 = idle).
-        """
+
         if not self.has_ev or self.ev_capacity_kwh == 0:
             return 0.0
+
         if not self.ev_at_home:
             return 0.0
 
-        # Departure-aware V2G discharge
         if (ENABLE_V2G
                 and self.scenario_mode == 1
                 and self.is_elastic
@@ -764,7 +759,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
             # Energy needed to reach max acceptable SoC by departure
             target_soc_kwh = self.ev_capacity_kwh * 0.90
             energy_needed_after_v2g = max(
-                0.0, target_soc_kwh - (self.ev_soc_kwh - 1.0)  
+                0.0, target_soc_kwh - (self.ev_soc_kwh - 1.0)  # 1 kWh export proxy
             )
             time_needed_after_v2g = (
                 energy_needed_after_v2g / EV_CHARGER_KW_NET
@@ -785,34 +780,35 @@ class OccupancyPlugin(EnergyPlusPlugin):
                     self._stat_v2g_kwh  += dchg_kwh
                     self._v2g_kwh_today += dchg_kwh
                     return -(dchg_kwh * EV_ETA_V2G / dt_hr) * 1000.0
-            # else fall through to G2V branch (also returns 0 if not is_peak window)
+            # else fall through to G2V branch 
 
-        # G2V charging 
+        # G2V charging
         if self.ev_soc_kwh >= self.ev_capacity_kwh:
             return 0.0
 
-        # Default rate fraction = 1.0 (full charger power)
+        # Default rate fraction = 1.0 
         rate_frac = 1.0
         can_charge = False
 
         if self.scenario_mode == 0:
-            # S0: uncontrolled - charge on arrival at full rate.  Price
-            # signal: full PG&E E-TOU-C schedule (set in Phase 1 via
-            # _get_tariff_for_scenario).  Battery does passive PV self-consumption.
+
             can_charge = True
 
         elif self.scenario_mode == 3:
+            # S3: FLAT-TARIFF CONTROL.  Charging behaviour is the same as S0
+            # (charge-on-arrival, full rate) — the EXPERIMENTAL distinction
+            # between S0 and S3 is the price signal:
+            #
+            #     S0  →  PG&E E-TOU-C schedule  (peaks → bill incentives)
+            #     S3  →  FLAT_TARIFF_RATE       (no peaks → no incentives)
             can_charge = True
 
         elif self.scenario_mode == 2:
-            # S2: TOU rebound - elastic households wait for off-peak (no stagger)
+            # S2: TOU rebound — elastic households wait for off-peak (no stagger)
             can_charge = (not self.is_elastic) or (not is_peak)
 
         elif self.scenario_mode in (1, 5):
-            # S1 (and S5): identical EV dispatch. S5 is S1 PLUS the one-way
-            # community-load broadcast, which enters only as an extra term in
-            # the shadow price below (guarded by scenario_mode == 5). With the
-            # broadcast absent or gamma = 0, S5 reduces exactly to S1.
+
             if not self.is_elastic:
                 # Inelastic users: charge at full rate, no stagger
                 can_charge = True
@@ -821,8 +817,10 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 base_dep = (EMPIRICAL_DEPARTURE_H_WEEKEND
                             if is_weekend else EMPIRICAL_DEPARTURE_H)
 
+
                 dep_h    = base_dep + 24.0
                 now_h    = hour + minute / 60.0
+
 
                 eff_now_h = (now_h + 24.0
                              if hour < ALGO1_MORNING_ROLLOVER_H
@@ -834,7 +832,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 if (not is_peak) and (t_since_offpeak_open_h >= stagger_h):
                     can_charge = True
 
-                    # DRM - rate scales by remaining-time / energy-needed
+                    # SOTA-2: DRM — rate scales by remaining-time / energy-needed
                     if ALGO1_DRM_ENABLE:
                         deficit_kwh   = (self.ev_capacity_kwh
                                          - self.ev_soc_kwh)
@@ -853,8 +851,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
                         ALGO1_PRICE_ALPHA * (price / RATE_OFF_PEAK)
                         + ALGO1_PRICE_BETA * (co2_g_kwh / CO2_CHARGE_GATE)
                     )
-                    # S5: one-way community-load broadcast, HETEROGENEOUS threshold.
-   
+
                     if self.scenario_mode == 5:
                         _excess = max(0.0,
                                       self._broadcast_load_frac(hour)
@@ -878,7 +875,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
             t = hour + minute / 60.0
             can_charge = (valley_open_h <= t <= VALLEY_END_H)
 
-        if self.scenario_mode in (0, 1, 2, 3, 5):
+        if self.scenario_mode in (0, 1, 2, 3, 4, 5):
             base_dep_o = (EMPIRICAL_DEPARTURE_H_WEEKEND
                           if is_weekend else EMPIRICAL_DEPARTURE_H)
             dep_h_abs   = base_dep_o + 24.0
@@ -953,12 +950,13 @@ class OccupancyPlugin(EnergyPlusPlugin):
         price: float,
     ) -> float:
         """Home battery price-arbitrage + carbon-aware dispatch"""
+
         if not ENABLE_BATTERY:
             return 0.0
-        # PER-HOUSE STORAGE PRESENCE (battery-penetration sensitivity)
+        # PER-HOUSE STORAGE PRESENCE
         if not self.has_battery:
             return 0.0
-
+        # PER-SCENARIO BATTERY DISPATCH
         eff_cap_wh = BATTERY_CAPACITY_WH * self.battery_soh_frac
         min_wh     = eff_cap_wh * BATTERY_MIN_SOC_FRAC
         max_wh     = eff_cap_wh * BATTERY_MAX_SOC_FRAC
@@ -967,7 +965,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
         soc_wh  = self.battery_soc_wh
         step_wh = BATTERY_POWER_W * dt_hr
 
-        # S0 / S3: PASSIVE SELF-CONSUMPTION (MSC) battery 
+        # S0 / S3: PASSIVE SELF-CONSUMPTION (MSC) battery
         if self.scenario_mode in (0, 3):
             residual_w = self._prev_residual_w
             if residual_w < 0.0 and soc_wh < max_wh:
@@ -990,21 +988,24 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 return -(dc_removed * BATTERY_ETA_DISCHARGE / dt_hr)
             return 0.0
 
-        # Discharge: peak shaving
         if is_peak and soc_wh > min_wh:
-            dc_max_wh   = (BATTERY_POWER_W / BATTERY_ETA_DISCHARGE) * dt_hr
-            dc_removed  = min(dc_max_wh, soc_wh - min_wh)
-            ac_export_w = -(dc_removed * BATTERY_ETA_DISCHARGE / dt_hr)
+            residual_w = self._prev_residual_w
+            if residual_w <= 0.0:
+                return 0.0            # house already net-exporting PV: nothing to shave
+            discharge_ac_w = min(residual_w, BATTERY_POWER_W)
+            dc_removed     = min(
+                discharge_ac_w / BATTERY_ETA_DISCHARGE * dt_hr,
+                soc_wh - min_wh)
             self.battery_soc_wh -= dc_removed
             self._update_battery_soh(dc_removed)
             self._stat_batt_kwh += dc_removed / 1000.0
-            return ac_export_w
+            return -(dc_removed * BATTERY_ETA_DISCHARGE / dt_hr)
 
         # Charge: off-peak + carbon gate
         if (not is_peak
                 and soc_wh < max_wh
                 and co2_g_kwh < CO2_CHARGE_GATE):
-            # BATTERY CHARGE POLICY for S1/S4/S5 (rate-limited, communication-free)
+
             if self.scenario_mode in (1, 4, 5):
                 eff_now_h = hour + minute / 60.0
                 if ENABLE_SOLAR_CHARGE:
@@ -1016,7 +1017,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 deficit_wh = max_wh - soc_wh
                 dc_rate_w  = min(BATTERY_POWER_W * BATTERY_ETA_CHARGE,
                                  deficit_wh / remaining_h)
-                # S5 ONLY: throttle the recharge by the same one-way broadcast used for EV charging
+
                 if self.scenario_mode == 5:
                     _excess = max(0.0,
                                   self._broadcast_load_frac(hour)
@@ -1033,7 +1034,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
         return 0.0
 
     def _update_battery_soh(self, delta_wh: float) -> None:
-        """DoD-weighted Wohler."""
+        """DoD-weighted Wohler"""
         if delta_wh <= 0.0:
             return
         self.battery_cum_kwh += delta_wh / 1000.0
@@ -1046,7 +1047,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
     def _compute_zone_loads(
         self, zone: str, hour: int, irradiance_w_m2: float,
     ) -> Tuple[float, float, float]:
-        """IIR-smoothed occupancy + equip + LED lighting."""
+        """IIR-smoothed occupancy + equip + LED lighting"""
         profile  = self.zone_profiles.get(zone, [0.0] * 24)
         cap      = self.zone_capacities.get(
             zone, self.max_capacity / max(1, len(self.zones)))
@@ -1095,8 +1096,6 @@ class OccupancyPlugin(EnergyPlusPlugin):
             )
         self._v2g_kwh_today = 0.0
 
-        # sample TODAY's calendar events (departure, arrival, VMT)
-
         self._dep_fired_today = False
         self._arr_fired_today = False
         if self.has_ev and self.ev_capacity_kwh > 0:
@@ -1114,15 +1113,15 @@ class OccupancyPlugin(EnergyPlusPlugin):
                     + self.rng.uniform(-EV_CALENDAR_JITTER_H,
                                        +EV_CALENDAR_JITTER_H)
                 )
-                # Driving energy expected to be deducted at today's departure.
+
                 self.ev_daily_kwh_consumed = (
                     self.ev_distance_miles
                     / max(1e-6, EV_EPA_CONSUMPTION_MI_PER_KWH)
                 )
-                # Backward-compatibility alias
+
                 self.ev_arrival_h = self.ev_arrival_h_today
             else:
-                # Synthetic / fallback calendar. Roll a presence coin
+
                 if self.rng.random() > 0.5:
                     arr = float(self.rng.randint(17, 20))
                     self.ev_arrival_h_today = arr
@@ -1151,14 +1150,14 @@ class OccupancyPlugin(EnergyPlusPlugin):
             tau_max_min_today = self._algorithm1_tau_max(is_weekend=is_weekend)
             if tau_max_min_today > 0 and self._house_slot_idx > 0:
                 if ALGO1_STAGGER_MODE == "iid":
-
                     frac = _iid_uniform_frac(
                         self._house_slot_idx, self._day_count_for_vdc
                     )
                 else:
+
                     day_offset_idx = (
                         (self._house_slot_idx + self._day_count_for_vdc * 7919) % 1024
-                    ) or 1   # avoid slot 0 , vdc(0) = 0
+                    ) or 1   # avoid slot 0 → vdc(0) = 0
                     frac = van_der_corput(day_offset_idx, base=2)
                 self.smart_delay_min = int(round(frac * tau_max_min_today))
             else:
@@ -1169,6 +1168,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
             self._day_count_for_vdc += 1
 
     # 8. TELEMETRY (sidecar CSV)
+
     def _open_sidecar(self) -> None:
         """Open sidecar CSV in ENERGYPLUS_OUTPUT_DIR"""
         out_dir = os.environ.get("ENERGYPLUS_OUTPUT_DIR", ".")
@@ -1188,7 +1188,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
         price: float, co2: float, is_peak: bool,
         t_out: float, irr: float,
         occ: float,
-        building_w: float,                
+        building_w: float,                 # v9.6
         pv_w: float, ev_w: float, batt_w: float, net_w: float,
         hvac: bool,
     ) -> None:
@@ -1200,7 +1200,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
             f"{price:.4f}", f"{co2:.0f}", int(is_peak),
             f"{t_out:.2f}", f"{irr:.1f}",
             f"{occ:.3f}",
-            f"{building_w:.1f}",          
+            f"{building_w:.1f}",           # v9.6
             f"{pv_w:.1f}", f"{ev_w:.1f}", f"{batt_w:.1f}", f"{net_w:.1f}",
             f"{self.ev_soc_kwh:.3f}", f"{self.battery_soc_wh:.1f}",
             f"{self.battery_soh_frac:.4f}",
@@ -1228,6 +1228,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
     # 9. PHASE 1 CALLBACK - dispatch + actuate + state handoff
 
     def on_begin_timestep_before_predictor(self, state) -> int:
+
         try:
 
             self._ts_valid = False
@@ -1261,18 +1262,16 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 if self.h_outdoor_temp > -1 else 15.0
             )
 
-            # GHI = DHI + DNI*cos(zenith) = DHI + DNI*sin(altitude)
             _dhi = (exch.get_variable_value(state, self.h_sun_diffuse)
                     if self.h_sun_diffuse > -1 else 0.0)
             _dni = (exch.get_variable_value(state, self.h_sun_direct)
                     if self.h_sun_direct > -1 else 0.0)
-            # Fallback 90 deg => cos(zenith)=1 
+
             _alt_deg = (exch.get_variable_value(state, self.h_sun_altitude)
                         if self.h_sun_altitude > -1 else 90.0)
             _cos_zenith = max(0.0, math.sin(math.radians(_alt_deg)))
             irradiance = max(0.0, _dhi + _dni * _cos_zenith)
 
-            # is_weekend now needed every timestep 
             is_weekend_now = exch.day_of_week(state) in (1, 7)
             if day != self.last_day:
                 month = exch.month(state)
@@ -1304,7 +1303,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
                     self._stat_co2_offpeak_kg += co2_credit_kg
 
             hvac_precool = (
-                self.scenario_mode in (1, 2, 5)
+                self.scenario_mode in (1, 2, 4, 5)
                 and PRECOOL_HOUR_START <= hour <= PRECOOL_HOUR_END
                 and outdoor_temp > PRECOOL_TEMP_C
             )
@@ -1339,7 +1338,6 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 if hl > -1:
                     exch.set_actuator_value(state, hl, lights_w)
 
-            # Net grid power is NOT computed here - Phase 2 adds building_w.
             self._ts_day          = day
             self._ts_hour         = hour
             self._ts_minute       = minute
@@ -1406,7 +1404,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 dt_sec     = self._ts_dt_hr * 3600.0
                 building_w = (building_j / dt_sec) if dt_sec > 0.0 else 0.0
             elif self.h_building_var > -1:
-                building_w = exch.get_variable_value(state, self.h_building_var)  
+                building_w = exch.get_variable_value(state, self.h_building_var)  # W
             else:
                 building_w = 0.0   # both meter and variable unresolved this step
 
@@ -1416,9 +1414,9 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 )
 
             # net grid draw:
-            #   + building_w (HVAC + lights + equip, always >= 0)
+            #   + building_w (HVAC + lights + equip)
             #   + ev_w       (+ charge, - V2G export)
-            #   + batt_w     (+ charge, - peak-shave export)
+            #   + batt_w     (+ charge, - load-following discharge; never exports)
             #   - pv_w       (generation exports to meter)
             net_grid_w = (
                 building_w
@@ -1427,7 +1425,6 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 - self._ts_pv_w
             )
 
-            #  residual net load (building + EV - PV, battery excluded)
             self._prev_residual_w = (
                 building_w + self._ts_ev_w - self._ts_pv_w
             )
@@ -1452,6 +1449,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
             return 1
 
     # 11. END-OF-RUN REPORTING
+
     def on_end_of_zone_timestep_after_zone_reporting(self, state) -> int:
 
         if getattr(self, "_summary_written", False):
@@ -1468,23 +1466,24 @@ class OccupancyPlugin(EnergyPlusPlugin):
             is_last_timestep = (
                 day == 365
                 and hour >= 23
-                and minute >= 49.99   
+                and minute >= 49.99   # float-safe boundary for "minute >= 50"
             )
             if not is_last_timestep:
                 return 0
         except Exception:
             return 0
 
+
         self._summary_written = True
         return self._emit_annual_summary(state)
 
     # legacy alias
     def on_end_of_run_period(self, state) -> int:
- 
+
         return self._emit_annual_summary(state)
 
     def _emit_annual_summary(self, state) -> int:
-
+   
         elapsed = time.monotonic() - self._run_wall_t0
         self._close_sidecar()
 
@@ -1501,7 +1500,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
         except Exception:
             lyap_h = float("nan")
 
-        # average SoC at departure (across all observed departures)
+        # average SoC at departure 
         if self._stat_dep_events > 0:
             avg_soc_at_dep_kwh = (
                 self._stat_dep_soc_at_dep_kwh / self._stat_dep_events
@@ -1509,7 +1508,6 @@ class OccupancyPlugin(EnergyPlusPlugin):
         else:
             avg_soc_at_dep_kwh = float("nan")
 
-        # write annual_summary.json - the PRIMARY emission channel.
         try:
             import json
             from pathlib import Path
@@ -1535,7 +1533,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
                 "markov_rho": float(self.markov_rho),
                 "battery_soh_frac": float(self.battery_soh_frac),
                 "lyap_h": float(lyap_h)
-                          if lyap_h == lyap_h else None,    
+                          if lyap_h == lyap_h else None,    # NaN → null
                 "dep_events": int(self._stat_dep_events),
                 "dep_misses": int(self._stat_dep_deadline_misses),
                 "avg_soc_at_dep_kwh": float(avg_soc_at_dep_kwh)
@@ -1552,7 +1550,7 @@ class OccupancyPlugin(EnergyPlusPlugin):
 
         try:
             self.api.runtime.issue_warning(state,
-                f"[OccupancyPlugin v12.5] , ANNUAL SUMMARY ,  "
+                f"[OccupancyPlugin v12.5] ══ ANNUAL SUMMARY ══  "
                 f"Wall={elapsed:.1f}s | "
                 f"S={self.scenario_mode} | "
                 f"elastic={self.is_elastic} | "
