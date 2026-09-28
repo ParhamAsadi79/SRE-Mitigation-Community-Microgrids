@@ -12,7 +12,6 @@ FLEET_CSV = "NHTS_Fleet_Data.csv"
 def hour_to_slot(h):
     return int(round((h - 12) % 24))
 
-# common representative community base load
 clock = [(s + 12) % 24 for s in range(H)]
 shape = []
 for h in clock:
@@ -23,7 +22,7 @@ for h in clock:
     shape.append(max(v, 0.18))
 D = np.array(shape) / max(shape) * 43.0
 
-# full real NHTS fleet 
+# full real NHTS fleet
 allfleet = []
 for r in csv.DictReader(open(FLEET_CSV)):
     arr = hour_to_slot(float(r["Arrival_Hour"]))
@@ -84,7 +83,7 @@ def run_unc(fleet):
     return R
 
 
-# PUBLISHED REFERENCE (manuscript Table 8)
+# PUBLISHED REFERENCE (manuscript Table 8) 
 TABLE8 = {            # eta: (stagger_kW, stagger_red%, odc_kW, odc_red%, rounds)
     0.25: (54.8, 29.8, 43.0, 44.9, 55),
     0.50: (74.1, 30.3, 47.2, 55.6, 67),
@@ -113,7 +112,7 @@ def check_against_table8(rows, source):
             + "  Either the manuscript table or this code is wrong. Do not ship the\n"
               "  CSV until they agree; a referee recomputing your recovery fraction\n"
               "  from the CSV gets a different number from the one you report.\n")
-    # Recovery fraction = stagger reduction / ODC reduction
+
     rec_full = [100 * r[3] / r[5] for r in rows]
     rec_tab  = [100 * round(r[3], 1) / round(r[5], 1) for r in rows]
     print(f"  [Table 8 check] {source}: all {len(rows)} rows match the manuscript.")
@@ -143,8 +142,6 @@ check_against_table8([(r[0], r[1], r[3], r[5], r[4], r[6], r[8]) for r in rows],
                      "odc_penetration_sweep.py")
 np.save("odc_sweep_rows.npy", np.array(rows))
 
-# This path now writes the CSV too. Previously only odc_resilience.py did, so
-# running this script left the CSV untouched and silently stale.
 with open("odc_penetration_sweep.csv", "w", newline="") as _f:
     _w = csv.writer(_f)
     _w.writerow(["eta", "n_vehicles", "stagger_peak_kw", "stagger_reduction_pct",
@@ -154,13 +151,13 @@ with open("odc_penetration_sweep.csv", "w", newline="") as _f:
                      f"{r[4]:.1f}", f"{r[6]:.1f}", r[8]])
 print("wrote odc_penetration_sweep.csv")
 
-# figure 
+# figure
 etas   = [r[0] for r in rows]
 stg_rd = [r[5] for r in rows]
 odc_rd = [r[6] for r in rows]
 rounds = [r[8] for r in rows]
 C = {"stg": "#0072B2", "odc": "#009E73"}
-plt.rcParams.update({"font.size": 9, "font.family": "serif", "axes.linewidth": 0.8})
+plt.rcParams.update({"pdf.fonttype": 42, "ps.fonttype": 42, "font.size": 9, "font.family": "serif", "axes.linewidth": 0.8})
 
 fig, ax = plt.subplots(1, 2, figsize=(7.2, 2.9))
 x = np.arange(len(etas)); w = 0.38
