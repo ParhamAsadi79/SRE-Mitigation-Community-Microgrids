@@ -4,7 +4,7 @@ Replication package for:
 
 > **Mitigating the Synchronization Rebound Effect in Community Microgrids: A
 > Communication-Free Stagger with Star-Discrepancy Guarantees**
-> Parham Asadi, Navid Shirzadi, Fuzhan Nasiri
+> Parham Asadi, Fuzhan Nasiri
 > *Applied Energy* (under review).
 > Archived release: https://doi.org/10.5281/zenodo.21520012
 
@@ -358,7 +358,7 @@ python verify_stagger_mode_patch.py
 
 ```bibtex
 @article{Asadi2026SRE,
-  author  = {Asadi, Parham and Shirzadi, Navid and Nasiri, Fuzhan},
+  author  = {Asadi, Parham and Nasiri, Fuzhan},
   title   = {Mitigating the Synchronization Rebound Effect in Community
              Microgrids: A Communication-Free Stagger with Star-Discrepancy
              Guarantees},
